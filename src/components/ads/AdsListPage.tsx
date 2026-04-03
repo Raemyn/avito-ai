@@ -6,7 +6,8 @@ const AdsListPage = () => {
 
         <Box mt={12} ml={32}>
             <AdsHeader />
-            <main>Я главный сайт</main>
+            <main>
+                Я главный сайт</main>
         </Box>
     )
 }
