@@ -9,13 +9,13 @@ import {
     Flex,
     Menu,
     Paper,
-    
+
     Switch,
     Text,
     TextInput,
     Title,
 } from "@mantine/core";
-import { IconChevronDown, IconLayoutGrid, IconList, IconSearch } from "@tabler/icons-react";
+import { IconChevronDown, IconLayoutGrid, IconList, IconPhoto, IconSearch } from "@tabler/icons-react";
 import AdsHeader from "./AdsHeader";
 
 type AdItem = {
@@ -39,7 +39,7 @@ const AdsListPage = () => {
         { category: "Авто", title: "Volkswagen Polo", price: "1100000 ₽", needsFix: true },
         { category: "Недвижимость", title: "Студия, 25м²", price: "15000000 ₽" },
         { category: "Недвижимость", title: "1-кк, 44м²", price: "19000000 ₽", needsFix: true },
-        { category: "Электроника", title: "MacBook Pro 16”", price: "64000 ₽" , needsFix: true  },
+        { category: "Электроника", title: "MacBook Pro 16”", price: "64000 ₽", needsFix: true },
         { category: "Авто", title: "Omoda C5", price: "2900000 ₽" },
         { category: "Электроника", title: "iPad Air 11, 2024 г.", price: "37000 ₽", },
         { category: "Электроника", title: "MAJOR VI", price: "20000 ₽" },
@@ -299,18 +299,16 @@ const AdsListPage = () => {
                                 >
                                     <Box
                                         h={150}
-                                        bg="#e9e9e9"
+                                        w={200}
                                         style={{
+                                            overflow: "hidden",
                                             display: "flex",
                                             alignItems: "center",
                                             justifyContent: "center",
-                                            width: "200px",
-                                            height: "150px",
+                                            backgroundColor: "#e9e9e9",
                                         }}
                                     >
-                                        <Text fz={14} c="#9b9b9b">
-                                            Фото
-                                        </Text>
+                                        <IconPhoto size={32} color="#9b9b9b" />
                                     </Box>
 
                                     <Box
@@ -338,8 +336,8 @@ const AdsListPage = () => {
                                     </Box>
                                     {/* тУТА */}
                                     <Box p={16}
-                                     pr={28} 
-                                     pt={21}>
+                                        pr={28}
+                                        pt={21}>
                                         <Text
                                             w={168}
                                             h={24}
@@ -365,24 +363,24 @@ const AdsListPage = () => {
 
                                         {ad.needsFix && (
                                             <Paper radius={8} bg='#f9f1e6' pl={9} p={2} mt={4}>
-                                            <Flex  align="center" gap={6}>
-                                                {/* Круглый маркер */}
-                                                <Box
-                                                    w={6}
-                                                    h={6}
-                                                    bg="#faad14"
-                                                    style={{ borderRadius: "50%" }}
-                                                />
-                                                {/* Текст */}
-                                                <Text
-                                                    fw={400}
-                                                    fz={14}
-                                                    
-                                                    c="#faad14"
-                                                >
-                                                    Требует доработок
-                                                </Text>
-                                            </Flex></Paper>
+                                                <Flex align="center" gap={6}>
+                                                    {/* Круглый маркер */}
+                                                    <Box
+                                                        w={6}
+                                                        h={6}
+                                                        bg="#faad14"
+                                                        style={{ borderRadius: "50%" }}
+                                                    />
+                                                    {/* Текст */}
+                                                    <Text
+                                                        fw={400}
+                                                        fz={14}
+
+                                                        c="#faad14"
+                                                    >
+                                                        Требует доработок
+                                                    </Text>
+                                                </Flex></Paper>
                                         )}
                                     </Box>
                                 </Paper>
