@@ -1,9 +1,9 @@
-import { Box, Flex, Title } from '@mantine/core';
+import { Flex, Title } from '@mantine/core';
 
 const AdsHeader = () => {
     return (
-        <header>
-            <Flex direction="column" py={12} pl={8}>
+        <header >
+            <Flex direction="column" py={12} pl={8} h={74}>
                 <Title
                     order={2}
                     fw={500}
@@ -13,7 +13,12 @@ const AdsHeader = () => {
                 >
                     Мои объявления
                 </Title>
-                <Title order={3} fz={18}>
+                <Title
+                    order={3}
+                    fw={400}
+                    fz={18}
+                    c="#848388"
+                >
                     42 объявления
                 </Title>
             </Flex>

@@ -14,13 +14,13 @@
   --sans: system-ui, 'Segoe UI', Roboto, sans-serif;
   --heading: system-ui, 'Segoe UI', Roboto, sans-serif;
   --mono: ui-monospace, Consolas, monospace;
-  margin: 0px auto;
-  padding: 0px;
+ 
+ 
 }
 
 html,
-body {
+body { 
+  background: #f7f5f8;
   margin: 0px auto;
   padding: 0px;
-
 }
