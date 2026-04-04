@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import {
     ActionIcon,
     Box,
@@ -32,9 +32,11 @@ type AdItem = {
     needsFix?: boolean;
 };
 
+type SortMode = "new" | "cheap" | "expensive";
+
 const AdsListPage = () => {
     const [view, setView] = useState<"grid" | "list">("grid");
-    const [sort, setSort] = useState("По новизне (сначала новые)");
+    const [sortMode, setSortMode] = useState<SortMode>("new");
     const [categoriesOpen, setCategoriesOpen] = useState(false);
     const [selectedCategories, setSelectedCategories] = useState<string[]>([]);
     const [onlyNeedsFix, setOnlyNeedsFix] = useState(false);
@@ -57,6 +59,8 @@ const AdsListPage = () => {
         { category: "Электроника", title: "iPhone 17 Pro Max", price: "107000 ₽" },
     ];
 
+    const parsePrice = (price: string) => Number(price.replace(/[^\d]/g, "")) || 0;
+
     const toggleCategory = (cat: string) => {
         setSelectedCategories((prev) =>
             prev.includes(cat) ? prev.filter((c) => c !== cat) : [...prev, cat]
@@ -68,6 +72,7 @@ const AdsListPage = () => {
         setSelectedCategories([]);
         setCategoriesOpen(false);
         setOnlyNeedsFix(false);
+        setSortMode("new");
         setCurrentPage(1);
     };
 
@@ -78,9 +83,23 @@ const AdsListPage = () => {
         return categoryOk && fixOk;
     });
 
-    const totalPages = Math.ceil(filteredAds.length / adsPerPage);
+    const sortedAds = useMemo(() => {
+        const list = [...filteredAds];
 
-    const displayedAds = filteredAds.slice(
+        if (sortMode === "cheap") {
+            list.sort((a, b) => parsePrice(a.price) - parsePrice(b.price));
+        }
+
+        if (sortMode === "expensive") {
+            list.sort((a, b) => parsePrice(b.price) - parsePrice(a.price));
+        }
+
+        return list;
+    }, [filteredAds, sortMode]);
+
+    const totalPages = Math.ceil(sortedAds.length / adsPerPage);
+
+    const displayedAds = sortedAds.slice(
         (currentPage - 1) * adsPerPage,
         currentPage * adsPerPage
     );
@@ -99,7 +118,13 @@ const AdsListPage = () => {
         }
 
         if (currentPage >= totalPages - 2) {
-            return [totalPages - 4, totalPages - 3, totalPages - 2, totalPages - 1, totalPages];
+            return [
+                totalPages - 4,
+                totalPages - 3,
+                totalPages - 2,
+                totalPages - 1,
+                totalPages,
+            ];
         }
 
         return [
@@ -112,6 +137,13 @@ const AdsListPage = () => {
     };
 
     const visiblePages = getVisiblePages();
+
+    const sortLabel =
+        sortMode === "new"
+            ? "По новизне (сначала новые)"
+            : sortMode === "cheap"
+                ? "По цене (сначала дешёвые)"
+                : "По цене (сначала дорогие)";
 
     return (
         <Box pt={10} pl={32} pr={32} bg="#f7f5f8">
@@ -165,44 +197,68 @@ const AdsListPage = () => {
                         </Paper>
 
                         <Menu>
+
                             <Menu.Target>
-                                <Button
-                                    color="#000"
-                                    bg="#f7f5f8"
-                                    w={240}
-                                    h={32}
-                                    radius={8}
-                                    variant="outline"
-                                    styles={{
-                                        root: {
-                                            fontSize: "14px",
-                                            border: "none",
-                                            borderRadius: "8px",
-                                            alignSelf: "center",
-                                            textAlign: "center",
-                                            display: "flex",
-                                            alignItems: "center",
-                                            justifyContent: "space-between",
-                                            padding: "0 4px",
-                                            height: 22,
-                                        },
-                                    }}
-                                    rightSection={<IconChevronDown size={16} color="#000" />}
-                                >
-                                    <Text pl={12} lts={0.2} bg="#fff" h={22} fw={400} fz={14} c="#000">
-                                        {sort}
-                                    </Text>
-                                </Button>
+                             
+                                    <Button
+                                        color="#000"
+                                        bg="#f7f5f8"
+                                        w={240}
+                                        h={32}
+                                        variant="outline"
+                                        styles={{
+                                            root: {
+                                                fontSize: "14px",
+                                                border: "none",
+                                                borderRadius: "8px",
+                                                alignSelf: "center",
+                                                textAlign: "center",
+                                                display: "flex",
+                                                alignItems: "center",
+                                                justifyContent: "space-between",
+                                                padding: "0 4px",
+                                                height: 22,
+                                            },
+                                        }}
+
+                                        rightSection={<IconChevronDown size={16} color="#000" />}
+
+                                    >
+
+                                        <Text pl={12} lts={0.2} bg="#fff" h={22} fw={400} fz={14} c="#000">
+                                            {sortLabel}
+                                        </Text>
+                                    </Button>
+                                
                             </Menu.Target>
 
                             <Menu.Dropdown>
-                                <Menu.Item onClick={() => setSort("По новизне (сначала новые)")}>
+                                <Menu.Item
+                                    onClick={() => {
+                                        setSortMode("new");
+                                        setCurrentPage(1);
+                                    }}
+                                >
                                     По новизне (сначала новые)
                                 </Menu.Item>
-                                <Menu.Item onClick={() => setSort("По цене (сначала дорогие)")}>
+                                <Menu.Item
+                                    onClick={() => {
+                                        setSortMode("cheap");
+                                        setCurrentPage(1);
+                                    }}
+                                >
+                                    По цене (сначала дешёвые)
+                                </Menu.Item>
+                                <Menu.Item
+                                    onClick={() => {
+                                        setSortMode("expensive");
+                                        setCurrentPage(1);
+                                    }}
+                                >
                                     По цене (сначала дорогие)
                                 </Menu.Item>
                             </Menu.Dropdown>
+
                         </Menu>
                     </Flex>
                 </Paper>
@@ -321,7 +377,7 @@ const AdsListPage = () => {
                         </Button>
                     </Flex>
 
-                    <Flex direction="column" flex={1} >
+                    <Flex direction="column" flex={1}>
                         <Box
                             style={{
                                 marginRight: "2px",
@@ -395,12 +451,7 @@ const AdsListPage = () => {
                                             {ad.title}
                                         </Text>
 
-                                        <Text
-                                            fz={16}
-                                            fw={600}
-                                            lh={1.4}
-                                            c="rgba(0, 0, 0, 0.45)"
-                                        >
+                                        <Text fz={16} fw={600} lh={1.4} c="rgba(0, 0, 0, 0.45)">
                                             {ad.price}
                                         </Text>
 
@@ -448,7 +499,8 @@ const AdsListPage = () => {
                                         key={page}
                                         onClick={() => handlePageChange(page)}
                                         style={{
-                                            border: currentPage === page ? "1px solid #1890ff" : "1px solid #d9d9d9",
+                                            border:
+                                                currentPage === page ? "1px solid #1890ff" : "1px solid #d9d9d9",
                                             borderRadius: 8,
                                             width: 32,
                                             height: 32,
