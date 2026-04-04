@@ -30,9 +30,16 @@ type AdItem = {
     title: string;
     price: string;
     needsFix?: boolean;
+    createdAt: number;
 };
 
-type SortMode = "new" | "cheap" | "expensive";
+type SortMode =
+    | "new"
+    | "old"
+    | "cheap"
+    | "expensive"
+    | "title_asc"
+    | "title_desc";
 
 const AdsListPage = () => {
     const [view, setView] = useState<"grid" | "list">("grid");
@@ -46,17 +53,17 @@ const AdsListPage = () => {
     const categories = ["Авто", "Электроника", "Недвижимость"];
     const adsPerPage = view === "list" ? 4 : 10;
     const ads: AdItem[] = [
-        { category: "Электроника", title: "Наушники", price: "2990 ₽" },
-        { category: "Авто", title: "Volkswagen Polo", price: "1100000 ₽", needsFix: true },
-        { category: "Недвижимость", title: "Студия, 25м²", price: "15000000 ₽" },
-        { category: "Недвижимость", title: "1-кк, 44м²", price: "19000000 ₽", needsFix: true },
-        { category: "Электроника", title: "MacBook Pro 16”", price: "64000 ₽", needsFix: true },
-        { category: "Авто", title: "Omoda C5", price: "2900000 ₽" },
-        { category: "Электроника", title: "iPad Air 11, 2024 г.", price: "37000 ₽" },
-        { category: "Электроника", title: "MAJOR VI", price: "20000 ₽" },
-        { category: "Авто", title: "Toyota Camry", price: "3900000 ₽", needsFix: true },
-        { category: "Электроника", title: "iPhone 17 Pro Max", price: "107000 ₽" },
-        { category: "Электроника", title: "iPhone 17 Pro Max", price: "107000 ₽" },
+        { category: "Электроника", title: "Наушники", price: "2990 ₽", createdAt: 5 },
+        { category: "Авто", title: "Volkswagen Polo", price: "1100000 ₽", needsFix: true, createdAt: 4 },
+        { category: "Недвижимость", title: "Студия, 25м²", price: "15000000 ₽", createdAt: 3 },
+        { category: "Недвижимость", title: "1-кк, 44м²", price: "19000000 ₽", needsFix: true, createdAt: 2 },
+        { category: "Электроника", title: "MacBook Pro 16”", price: "64000 ₽", needsFix: true, createdAt: 1 },
+        { category: "Авто", title: "Omoda C5", price: "2900000 ₽", createdAt: 6 },
+        { category: "Электроника", title: "iPad Air 11, 2024 г.", price: "37000 ₽", createdAt: 7 },
+        { category: "Электроника", title: "MAJOR VI", price: "20000 ₽", createdAt: 8 },
+        { category: "Авто", title: "Toyota Camry", price: "3900000 ₽", needsFix: true, createdAt: 9 },
+        { category: "Электроника", title: "iPhone 17 Pro Max", price: "107000 ₽", createdAt: 10 },
+        { category: "Электроника", title: "iPhone 17 Pro Max", price: "107000 ₽", createdAt: 11 },
     ];
 
     const parsePrice = (price: string) => Number(price.replace(/[^\d]/g, "")) || 0;
@@ -97,12 +104,30 @@ const AdsListPage = () => {
     const sortedAds = useMemo(() => {
         const list = [...filteredAds];
 
-        if (sortMode === "cheap") {
-            list.sort((a, b) => parsePrice(a.price) - parsePrice(b.price));
-        }
+        switch (sortMode) {
+            case "cheap":
+                list.sort((a, b) => parsePrice(a.price) - parsePrice(b.price));
+                break;
 
-        if (sortMode === "expensive") {
-            list.sort((a, b) => parsePrice(b.price) - parsePrice(a.price));
+            case "expensive":
+                list.sort((a, b) => parsePrice(b.price) - parsePrice(a.price));
+                break;
+
+            case "new":
+                list.sort((a, b) => b.createdAt - a.createdAt);
+                break;
+
+            case "old":
+                list.sort((a, b) => a.createdAt - b.createdAt);
+                break;
+
+            case "title_asc":
+                list.sort((a, b) => a.title.localeCompare(b.title));
+                break;
+
+            case "title_desc":
+                list.sort((a, b) => b.title.localeCompare(a.title));
+                break;
         }
 
         return list;
@@ -143,13 +168,16 @@ const AdsListPage = () => {
 
     const visiblePages = getVisiblePages();
 
-    const sortLabel =
-        sortMode === "new"
-            ? "По новизне (сначала новые)"
-            : sortMode === "cheap"
-                ? "По цене (сначала дешёвые)"
-                : "По цене (сначала дорогие)";
+    const sortLabelMap = {
+        new: "По новизне (сначала новые)",
+        old: "По новизне (сначала старые)",
+        cheap: "По цене (сначала дешевле)",
+        expensive: "По цене (сначала дороже)",
+        title_asc: "По названию (А → Я)",
+        title_desc: "По названию (Я → А)",
+    };
 
+    const sortLabel = sortLabelMap[sortMode];
     return (
         <Box pt={10} pl={32} pr={32} bg="#f7f5f8">
             <AdsHeader />
@@ -251,29 +279,32 @@ const AdsListPage = () => {
                             </Menu.Target>
 
                             <Menu.Dropdown>
-                                <Menu.Item
-                                    onClick={() => {
-                                        setSortMode("new");
-                                        setCurrentPage(1);
-                                    }}
-                                >
-                                    По новизне (сначала новые)
+                                <Menu.Label>Название</Menu.Label>
+                                <Menu.Item onClick={() => { setSortMode("title_asc"); setCurrentPage(1); }}>
+                                    А → Я
                                 </Menu.Item>
-                                <Menu.Item
-                                    onClick={() => {
-                                        setSortMode("cheap");
-                                        setCurrentPage(1);
-                                    }}
-                                >
-                                    По цене (сначала дешёвые)
+                                <Menu.Item onClick={() => { setSortMode("title_desc"); setCurrentPage(1); }}>
+                                    Я → А
                                 </Menu.Item>
-                                <Menu.Item
-                                    onClick={() => {
-                                        setSortMode("expensive");
-                                        setCurrentPage(1);
-                                    }}
-                                >
-                                    По цене (сначала дорогие)
+
+                                <Menu.Divider />
+
+                                <Menu.Label>Новизна</Menu.Label>
+                                <Menu.Item onClick={() => { setSortMode("new"); setCurrentPage(1); }}>
+                                    Сначала новые
+                                </Menu.Item>
+                                <Menu.Item onClick={() => { setSortMode("old"); setCurrentPage(1); }}>
+                                    Сначала старые
+                                </Menu.Item>
+
+                                <Menu.Divider />
+
+                                <Menu.Label>Цена</Menu.Label>
+                                <Menu.Item onClick={() => { setSortMode("cheap"); setCurrentPage(1); }}>
+                                    Сначала дешевле
+                                </Menu.Item>
+                                <Menu.Item onClick={() => { setSortMode("expensive"); setCurrentPage(1); }}>
+                                    Сначала дороже
                                 </Menu.Item>
                             </Menu.Dropdown>
                         </Menu>
