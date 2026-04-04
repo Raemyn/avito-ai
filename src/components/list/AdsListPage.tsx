@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { baseAds, getAds } from "../../data/ads";
+import { useQuery } from "@tanstack/react-query";
+import { getItems } from "../../api/items";
 import {
     ActionIcon,
     Box,
@@ -27,13 +28,43 @@ import {
 } from "@tabler/icons-react";
 import AdsHeader from "./AdsHeader";
 
-type SortMode =
-    | "new"
-    | "old"
-    | "cheap"
-    | "expensive"
-    | "title_asc"
-    | "title_desc";
+type SortMode = "new" | "old" | "cheap" | "expensive" | "title_asc" | "title_desc";
+
+type ApiCategory = "auto" | "real_estate" | "electronics";
+
+type ApiItem = {
+    id: number;
+    category: ApiCategory;
+    title: string;
+    price: number;
+    needsRevision: boolean;
+};
+
+type ApiItemsResponse = {
+    items: ApiItem[];
+    total: number;
+};
+
+type UiCategory = "Авто" | "Электроника" | "Недвижимость";
+
+type UiAd = {
+    id: number;
+    category: UiCategory;
+    title: string;
+    price: string;
+    needsFix: boolean;
+};
+
+const mapCategory = (category: ApiCategory): UiCategory => {
+    switch (category) {
+        case "auto":
+            return "Авто";
+        case "real_estate":
+            return "Недвижимость";
+        case "electronics":
+            return "Электроника";
+    }
+};
 
 const AdsListPage = () => {
     const navigate = useNavigate();
@@ -47,14 +78,39 @@ const AdsListPage = () => {
     const [searchTerm, setSearchTerm] = useState("");
 
     const categories = ["Авто", "Электроника", "Недвижимость"];
-    const adsPerPage = view === "list" ? 4 : 10;
+    const adsPerPage = 10;
 
     const parsePrice = (price: string) => Number(price.replace(/[^\d]/g, "")) || 0;
     const normalize = (value: string) => value.toLowerCase().replace(/\s+/g, " ").trim();
 
+    const {
+        data,
+        isLoading,
+        isError,
+        error,
+        refetch,
+    } = useQuery({
+        queryKey: ["ads"],
+        queryFn: async (): Promise<ApiItemsResponse> => {
+            const result = await getItems();
+            return result as ApiItemsResponse;
+        },
+        staleTime: 60_000,
+    });
+
+    const ads: UiAd[] = useMemo(() => {
+        return (data?.items ?? []).map((item) => ({
+            id: item.id,
+            category: mapCategory(item.category),
+            title: item.title,
+            price: `${item.price} ₽`,
+            needsFix: item.needsRevision,
+        }));
+    }, [data]);
+
     const adOrder = useMemo(() => {
-        return new Map(baseAds.map((ad, index) => [ad.id, index]));
-    }, []);
+        return new Map(ads.map((ad, index) => [ad.id, index]));
+    }, [ads]);
 
     const toggleCategory = (cat: string) => {
         setSelectedCategories((prev) =>
@@ -71,33 +127,22 @@ const AdsListPage = () => {
         setSearchTerm("");
         setCurrentPage(1);
     };
-    const ads = getAds();
+
     const filteredAds = useMemo(() => {
         const query = normalize(searchTerm);
 
         return ads.filter((ad) => {
             const categoryOk =
-                selectedCategories.length === 0 ||
-                selectedCategories.includes(ad.category);
+                selectedCategories.length === 0 || selectedCategories.includes(ad.category);
 
             const fixOk = !onlyNeedsFix || ad.needsFix;
 
-            const searchOk =
-                query.length === 0 ||
-                normalize(ad.title).includes(query);
+            const searchOk = query.length === 0 || normalize(ad.title).includes(query);
 
             return categoryOk && fixOk && searchOk;
         });
     }, [ads, searchTerm, selectedCategories, onlyNeedsFix]);
-    useEffect(() => {
-        const onFocus = () => {
-            // триггерим обновление
-            setCurrentPage((p) => p);
-        };
 
-        window.addEventListener("focus", onFocus);
-        return () => window.removeEventListener("focus", onFocus);
-    }, []);
     const sortedAds = useMemo(() => {
         const list = [...filteredAds];
 
@@ -111,15 +156,11 @@ const AdsListPage = () => {
                 break;
 
             case "new":
-                list.sort(
-                    (a, b) => (adOrder.get(b.id) ?? 0) - (adOrder.get(a.id) ?? 0)
-                );
+                list.sort((a, b) => (adOrder.get(b.id) ?? 0) - (adOrder.get(a.id) ?? 0));
                 break;
 
             case "old":
-                list.sort(
-                    (a, b) => (adOrder.get(a.id) ?? 0) - (adOrder.get(b.id) ?? 0)
-                );
+                list.sort((a, b) => (adOrder.get(a.id) ?? 0) - (adOrder.get(b.id) ?? 0));
                 break;
 
             case "title_asc":
@@ -146,6 +187,10 @@ const AdsListPage = () => {
         setCurrentPage(1);
     }, [view, sortMode]);
 
+    useEffect(() => {
+        setCurrentPage(1);
+    }, [searchTerm, selectedCategories, onlyNeedsFix]);
+
     const displayedAds = sortedAds.slice(
         (currentPage - 1) * adsPerPage,
         currentPage * adsPerPage
@@ -165,10 +210,22 @@ const AdsListPage = () => {
         }
 
         if (currentPage >= totalPages - 2) {
-            return [totalPages - 4, totalPages - 3, totalPages - 2, totalPages - 1, totalPages];
+            return [
+                totalPages - 4,
+                totalPages - 3,
+                totalPages - 2,
+                totalPages - 1,
+                totalPages,
+            ];
         }
 
-        return [currentPage - 2, currentPage - 1, currentPage, currentPage + 1, currentPage + 2];
+        return [
+            currentPage - 2,
+            currentPage - 1,
+            currentPage,
+            currentPage + 1,
+            currentPage + 2,
+        ];
     };
 
     const visiblePages = getVisiblePages();
@@ -183,10 +240,33 @@ const AdsListPage = () => {
     };
 
     const sortLabel = sortLabelMap[sortMode];
+    const totalAdsCount = data?.total ?? ads.length;
+
+    if (isLoading) {
+        return (
+            <Box pt={40} px={32} bg="#f7f5f8" mih="100vh">
+                <Text>Загрузка объявлений...</Text>
+            </Box>
+        );
+    }
+
+    if (isError) {
+        return (
+            <Box pt={40} px={32} bg="#f7f5f8" mih="100vh">
+                <Text c="red">Не удалось загрузить объявления.</Text>
+                <Button mt={16} onClick={() => refetch()}>
+                    Повторить
+                </Button>
+                <Text mt={8} fz={12} c="#666">
+                    {error instanceof Error ? error.message : "Неизвестная ошибка"}
+                </Text>
+            </Box>
+        );
+    }
 
     return (
         <Box pt={10} pl={32} pr={32} bg="#f7f5f8">
-            <AdsHeader count={filteredAds.length} />
+            <AdsHeader count={totalAdsCount} />
 
             <main>
                 <Paper mt={16} radius={8} p={12} bg="#fff" h={56}>
@@ -201,7 +281,7 @@ const AdsListPage = () => {
                                 setSearchTerm(event.currentTarget.value);
                                 setCurrentPage(1);
                             }}
-                            rightSection={<IconSearch size={14} height={31} />}
+                            rightSection={<IconSearch size={14} />}
                             styles={{
                                 input: {
                                     border: "none",
@@ -367,7 +447,9 @@ const AdsListPage = () => {
                                             size={18}
                                             style={{
                                                 marginRight: "14px",
-                                                transform: categoriesOpen ? "rotate(180deg)" : "rotate(0deg)",
+                                                transform: categoriesOpen
+                                                    ? "rotate(180deg)"
+                                                    : "rotate(0deg)",
                                                 transition: "0.2s",
                                             }}
                                         />
@@ -458,7 +540,11 @@ const AdsListPage = () => {
                     </Flex>
 
                     <Flex direction="column" flex={1}>
-                        {view === "grid" ? (
+                        {sortedAds.length === 0 ? (
+                            <Paper p={24} radius={16} bg="#fff">
+                                <Text c="#707176">Ничего не найдено.</Text>
+                            </Paper>
+                        ) : view === "grid" ? (
                             <Box
                                 style={{
                                     marginRight: "2px",
@@ -686,7 +772,9 @@ const AdsListPage = () => {
                                 ))}
 
                                 <ActionIcon
-                                    onClick={() => currentPage < totalPages && handlePageChange(currentPage + 1)}
+                                    onClick={() =>
+                                        currentPage < totalPages && handlePageChange(currentPage + 1)
+                                    }
                                     aria-label="Следующая страница"
                                     style={{
                                         border: "1px solid #d9d9d9",
