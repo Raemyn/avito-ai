@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
+import type { CSSProperties } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import {
     clearDraft,
@@ -20,7 +21,7 @@ import {
     Textarea,
     Title,
 } from "@mantine/core";
-import { IconBulb, IconRefresh, IconX, IconCheck } from "@tabler/icons-react";
+import { IconBulb, IconRefresh, IconCheck } from "@tabler/icons-react";
 
 type Category = Ad["category"];
 
@@ -78,6 +79,30 @@ const getInitialState = (ad: Ad): EditFormState => ({
     price: ad.price.replace(/[^\d]/g, ""),
     description: ad.description ?? "",
     params: getCategoryParams(ad),
+});
+
+const getRequiredInputStyles = (hasError: boolean): { input: CSSProperties } => ({
+    input: {
+        border: hasError ? "1px solid #ec221f" : "1px solid #d9d9d9",
+        borderRadius: 8,
+        padding: "5px 12px",
+        width: 327,
+        height: 28,
+        background: "#fff",
+        boxSizing: "border-box",
+    },
+});
+
+const getOptionalInputStyles = (value?: string): { input: CSSProperties } => ({
+    input: {
+        border: value ? "1px solid #d9d9d9" : "1px solid #faad14",
+        borderRadius: 8,
+        padding: "5px 12px",
+        width: 456,
+        height: 32,
+        background: "#fff",
+        boxSizing: "border-box",
+    },
 });
 
 const AdEditPage = () => {
@@ -140,42 +165,42 @@ const AdEditPage = () => {
         setForm((prev) => (prev ? { ...prev, [key]: value } : prev));
     };
 
-
     const updateParam = (key: keyof EditFormState["params"], value: string) => {
         setForm((prev) =>
             prev
                 ? {
-                    ...prev,
-                    params: {
-                        ...prev.params,
-                        [key]: value,
-                    },
-                }
+                      ...prev,
+                      params: {
+                          ...prev.params,
+                          [key]: value,
+                      },
+                  }
                 : prev
         );
     };
 
-     const isValid = form.title.trim() && form.price;
-        const validateField = (field: "title" | "price") => {
-            if (field === "title" && !form.title.trim()) {
-                setErrors((e) => ({ ...e, title: "Название должно быть заполнено" }));
-            } else if (field === "price" && !form.price) {
-                setErrors((e) => ({ ...e, price: "Цена должна быть заполнена" }));
-            } else {
-                setErrors((e) => ({ ...e, [field]: undefined }));
-            }
-        };
+    const validateField = (field: "title" | "price") => {
+        if (field === "title" && !form.title.trim()) {
+            setErrors((e) => ({ ...e, title: "Название должно быть заполнено" }));
+        } else if (field === "price" && !form.price.trim()) {
+            setErrors((e) => ({ ...e, price: "Цена должна быть заполнена" }));
+        } else {
+            setErrors((e) => ({ ...e, [field]: undefined }));
+        }
+    };
+
+    const isValid = Boolean(form.title.trim() && form.price.trim());
 
     const handleSuggestDescription = () => {
         setForm((prev) =>
             prev
                 ? {
-                    ...prev,
-                    description:
-                        prev.category === "Электроника"
-                            ? `Продаю ${prev.title}. Отличный вариант для работы, учёбы и повседневных задач.`
-                            : `Продаю ${prev.title}. Хорошее состояние, аккуратное использование, готов к сделке.`,
-                }
+                      ...prev,
+                      description:
+                          prev.category === "Электроника"
+                              ? `Продаю ${prev.title}. Отличный вариант для работы, учёбы и повседневных задач.`
+                              : `Продаю ${prev.title}. Хорошее состояние, аккуратное использование, готов к сделке.`,
+                  }
                 : prev
         );
     };
@@ -188,14 +213,18 @@ const AdEditPage = () => {
             form.category === "Электроника"
                 ? Math.round(current * 0.97)
                 : form.category === "Авто"
-                    ? Math.round(current * 1.02)
-                    : Math.round(current * 1.01);
+                  ? Math.round(current * 1.02)
+                  : Math.round(current * 1.01);
 
         updateField("price", String(suggested));
     };
 
     const handleSave = () => {
-       
+        validateField("title");
+        validateField("price");
+
+        if (!isValid) return;
+
         const normalizedPrice = Number(form.price.replace(/[^\d]/g, "")) || 0;
 
         const nextAd: Ad = {
@@ -251,6 +280,7 @@ const AdEditPage = () => {
         saveAd(nextAd);
         clearDraft(draftKey);
         setSaved(true);
+
         setTimeout(() => {
             setSaved(false);
             navigate(`/ads/${ad.id}`);
@@ -281,7 +311,6 @@ const AdEditPage = () => {
                     }}
                 >
                     <Flex align="center" gap={8}>
-                        {/* кружок с галочкой */}
                         <Box
                             style={{
                                 width: 16,
@@ -296,7 +325,6 @@ const AdEditPage = () => {
                             <IconCheck size={12} color="#fff" />
                         </Box>
 
-                        {/* текст */}
                         <Text
                             style={{
                                 fontWeight: 400,
@@ -310,6 +338,7 @@ const AdEditPage = () => {
                     </Flex>
                 </Box>
             )}
+
             <Paper radius={24} p={32} bg="#fff">
                 <Title order={2} fw={600} fz={32} mb={24}>
                     Редактирование объявления
@@ -324,32 +353,37 @@ const AdEditPage = () => {
                             updateField("category", (value as Category) ?? "Электроника")
                         }
                         radius={8}
-                        w={450}
+                        w={327}
                     />
 
                     <Divider color="#ededed" />
 
                     <Box>
-                        <Text>
-                            <span style={{ color: "red" }}>*</span> Название
+                        <Text fw={600} fz={16} lh="140%"  c="#000">
+                            <span style={{ color: "#ff4d4f" }}>*</span> Название
                         </Text>
 
                         <TextInput
                             value={form.title}
-                            onChange={(e) => updateField("title", e.currentTarget.value)}
-                            onBlur={() => validateField("title")}
-                            radius={8}
-                            w={450}
-                            styles={{
-                                input: {
-                                    border: "1px solid #d9d9d9",
-                                    height: 28,
-                                },
+                            onChange={(e) => {
+                                updateField("title", e.currentTarget.value);
+                                if (errors.title) {
+                                    setErrors((prev) => ({ ...prev, title: undefined }));
+                                }
                             }}
+                            onBlur={() => validateField("title")}
+                            styles={getRequiredInputStyles(Boolean(errors.title))}
                         />
 
                         {errors.title && (
-                            <Text style={{ fontSize: 12, color: "#ec221f" }}>
+                            <Text
+                                style={{
+                                    fontWeight: 400,
+                                    fontSize: 12,
+                                    lineHeight: "167%",
+                                    color: "#ec221f",
+                                }}
+                            >
                                 {errors.title}
                             </Text>
                         )}
@@ -359,28 +393,34 @@ const AdEditPage = () => {
 
                     <Flex align="flex-end" gap={20} wrap="wrap">
                         <Box>
-                            <Text mb={8}>
-                                <span style={{ color: "red" }}>*</span> Цена
+                            <Text mb={8} fw={600} fz={16} lh="140%" c="#000">
+                                <span style={{ color: "#ff4d4f" }}>*</span> Цена
                             </Text>
 
                             <TextInput
                                 value={form.price}
-                                onChange={(e) =>
-                                    updateField("price", e.currentTarget.value.replace(/[^\d]/g, ""))
-                                }
-                                onBlur={() => validateField("price")}
-                                radius={8}
-                                w={450}
-                                styles={{
-                                    input: {
-                                        border: "1px solid #d9d9d9",
-                                        height: 28,
-                                    },
+                                onChange={(e) => {
+                                    updateField(
+                                        "price",
+                                        e.currentTarget.value.replace(/[^\d]/g, "")
+                                    );
+                                    if (errors.price) {
+                                        setErrors((prev) => ({ ...prev, price: undefined }));
+                                    }
                                 }}
+                                onBlur={() => validateField("price")}
+                                styles={getRequiredInputStyles(Boolean(errors.price))}
                             />
 
                             {errors.price && (
-                                <Text style={{ fontSize: 12, color: "#ec221f" }}>
+                                <Text
+                                    style={{
+                                        fontWeight: 400,
+                                        fontSize: 12,
+                                        lineHeight: "167%",
+                                        color: "#ec221f",
+                                    }}
+                                >
                                     {errors.price}
                                 </Text>
                             )}
@@ -407,41 +447,41 @@ const AdEditPage = () => {
                         Характеристики
                     </Title>
 
-                    <Box w={450}>
+                    <Box w={456}>
                         {form.category === "Электроника" && (
                             <>
                                 <TextInput
                                     label="Тип"
                                     value={form.params.type}
                                     onChange={(e) => updateParam("type", e.currentTarget.value)}
-                                    radius={8}
+                                    styles={getOptionalInputStyles(form.params.type)}
                                 />
                                 <TextInput
                                     label="Бренд"
                                     value={form.params.brand}
                                     onChange={(e) => updateParam("brand", e.currentTarget.value)}
-                                    radius={8}
+                                    styles={getOptionalInputStyles(form.params.brand)}
                                     mt={12}
                                 />
                                 <TextInput
                                     label="Модель"
                                     value={form.params.model}
                                     onChange={(e) => updateParam("model", e.currentTarget.value)}
-                                    radius={8}
+                                    styles={getOptionalInputStyles(form.params.model)}
                                     mt={12}
                                 />
                                 <TextInput
                                     label="Цвет"
                                     value={form.params.color}
                                     onChange={(e) => updateParam("color", e.currentTarget.value)}
-                                    radius={8}
+                                    styles={getOptionalInputStyles(form.params.color)}
                                     mt={12}
                                 />
                                 <TextInput
                                     label="Состояние"
                                     value={form.params.condition}
                                     onChange={(e) => updateParam("condition", e.currentTarget.value)}
-                                    radius={8}
+                                    styles={getOptionalInputStyles(form.params.condition)}
                                     mt={12}
                                 />
                             </>
@@ -453,13 +493,13 @@ const AdEditPage = () => {
                                     label="Бренд"
                                     value={form.params.brand}
                                     onChange={(e) => updateParam("brand", e.currentTarget.value)}
-                                    radius={8}
+                                    styles={getOptionalInputStyles(form.params.brand)}
                                 />
                                 <TextInput
                                     label="Модель"
                                     value={form.params.model}
                                     onChange={(e) => updateParam("model", e.currentTarget.value)}
-                                    radius={8}
+                                    styles={getOptionalInputStyles(form.params.model)}
                                     mt={12}
                                 />
                                 <TextInput
@@ -468,28 +508,28 @@ const AdEditPage = () => {
                                     onChange={(e) =>
                                         updateParam("yearOfManufacture", e.currentTarget.value)
                                     }
-                                    radius={8}
+                                    styles={getOptionalInputStyles(form.params.yearOfManufacture)}
                                     mt={12}
                                 />
                                 <TextInput
                                     label="Коробка передач"
                                     value={form.params.transmission ?? ""}
                                     onChange={(e) => updateParam("transmission", e.currentTarget.value)}
-                                    radius={8}
+                                    styles={getOptionalInputStyles(form.params.transmission)}
                                     mt={12}
                                 />
                                 <TextInput
                                     label="Пробег"
                                     value={form.params.mileage ?? ""}
                                     onChange={(e) => updateParam("mileage", e.currentTarget.value)}
-                                    radius={8}
+                                    styles={getOptionalInputStyles(form.params.mileage)}
                                     mt={12}
                                 />
                                 <TextInput
                                     label="Мощность двигателя"
                                     value={form.params.enginePower ?? ""}
                                     onChange={(e) => updateParam("enginePower", e.currentTarget.value)}
-                                    radius={8}
+                                    styles={getOptionalInputStyles(form.params.enginePower)}
                                     mt={12}
                                 />
                             </>
@@ -501,27 +541,27 @@ const AdEditPage = () => {
                                     label="Тип"
                                     value={form.params.type}
                                     onChange={(e) => updateParam("type", e.currentTarget.value)}
-                                    radius={8}
+                                    styles={getOptionalInputStyles(form.params.type)}
                                 />
                                 <TextInput
                                     label="Адрес"
                                     value={form.params.address ?? ""}
                                     onChange={(e) => updateParam("address", e.currentTarget.value)}
-                                    radius={8}
+                                    styles={getOptionalInputStyles(form.params.address)}
                                     mt={12}
                                 />
                                 <TextInput
                                     label="Площадь"
                                     value={form.params.area ?? ""}
                                     onChange={(e) => updateParam("area", e.currentTarget.value)}
-                                    radius={8}
+                                    styles={getOptionalInputStyles(form.params.area)}
                                     mt={12}
                                 />
                                 <TextInput
                                     label="Этаж"
                                     value={form.params.floor ?? ""}
                                     onChange={(e) => updateParam("floor", e.currentTarget.value)}
-                                    radius={8}
+                                    styles={getOptionalInputStyles(form.params.floor)}
                                     mt={12}
                                 />
                             </>
@@ -573,11 +613,18 @@ const AdEditPage = () => {
                             style={{
                                 background: isValid ? "#1890ff" : "#f3f3f3",
                                 color: isValid ? "#fff" : "#999",
-                            }}>
+                            }}
+                        >
                             Сохранить
                         </Button>
 
-                        <Button onClick={handleCancel} radius={8} variant="filled" bg="#d9d9d9" c="#4b4b4b">
+                        <Button
+                            onClick={handleCancel}
+                            radius={8}
+                            variant="filled"
+                            bg="#d9d9d9"
+                            c="#4b4b4b"
+                        >
                             Отменить
                         </Button>
                     </Flex>
