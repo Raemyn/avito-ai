@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import {
     ActionIcon,
     Box,
@@ -41,6 +41,7 @@ const AdsListPage = () => {
     const [selectedCategories, setSelectedCategories] = useState<string[]>([]);
     const [onlyNeedsFix, setOnlyNeedsFix] = useState(false);
     const [currentPage, setCurrentPage] = useState(1);
+    const [searchTerm, setSearchTerm] = useState("");
 
     const categories = ["Авто", "Электроника", "Недвижимость"];
     const adsPerPage = 10;
@@ -61,6 +62,9 @@ const AdsListPage = () => {
 
     const parsePrice = (price: string) => Number(price.replace(/[^\d]/g, "")) || 0;
 
+    const normalize = (value: string) =>
+        value.toLowerCase().replace(/\s+/g, " ").trim();
+
     const toggleCategory = (cat: string) => {
         setSelectedCategories((prev) =>
             prev.includes(cat) ? prev.filter((c) => c !== cat) : [...prev, cat]
@@ -73,15 +77,26 @@ const AdsListPage = () => {
         setCategoriesOpen(false);
         setOnlyNeedsFix(false);
         setSortMode("new");
+        setSearchTerm("");
         setCurrentPage(1);
     };
 
-    const filteredAds = ads.filter((ad) => {
-        const categoryOk =
-            selectedCategories.length === 0 || selectedCategories.includes(ad.category);
-        const fixOk = !onlyNeedsFix || ad.needsFix;
-        return categoryOk && fixOk;
-    });
+    const filteredAds = useMemo(() => {
+        const query = normalize(searchTerm);
+
+        return ads.filter((ad) => {
+            const categoryOk =
+                selectedCategories.length === 0 || selectedCategories.includes(ad.category);
+
+            const fixOk = !onlyNeedsFix || ad.needsFix;
+
+            const searchOk =
+                query.length === 0 ||
+                normalize(ad.title).includes(query); // <-- только title
+
+            return categoryOk && fixOk && searchOk;
+        });
+    }, [searchTerm, selectedCategories, onlyNeedsFix]);
 
     const sortedAds = useMemo(() => {
         const list = [...filteredAds];
@@ -98,6 +113,12 @@ const AdsListPage = () => {
     }, [filteredAds, sortMode]);
 
     const totalPages = Math.ceil(sortedAds.length / adsPerPage);
+
+    useEffect(() => {
+        if (currentPage > totalPages && totalPages > 0) {
+            setCurrentPage(1);
+        }
+    }, [currentPage, totalPages]);
 
     const displayedAds = sortedAds.slice(
         (currentPage - 1) * adsPerPage,
@@ -157,6 +178,11 @@ const AdsListPage = () => {
                             placeholder="Найти объявление..."
                             radius={8}
                             w={958}
+                            value={searchTerm}
+                            onChange={(event) => {
+                                setSearchTerm(event.currentTarget.value);
+                                setCurrentPage(1);
+                            }}
                             rightSection={<IconSearch size={14} height={31} />}
                             styles={{
                                 input: {
@@ -197,39 +223,33 @@ const AdsListPage = () => {
                         </Paper>
 
                         <Menu>
-
                             <Menu.Target>
-                             
-                                    <Button
-                                        color="#000"
-                                        bg="#f7f5f8"
-                                        w={240}
-                                        h={32}
-                                        variant="outline"
-                                        styles={{
-                                            root: {
-                                                fontSize: "14px",
-                                                border: "none",
-                                                borderRadius: "8px",
-                                                alignSelf: "center",
-                                                textAlign: "center",
-                                                display: "flex",
-                                                alignItems: "center",
-                                                justifyContent: "space-between",
-                                                padding: "0 4px",
-                                                height: 22,
-                                            },
-                                        }}
-
-                                        rightSection={<IconChevronDown size={16} color="#000" />}
-
-                                    >
-
-                                        <Text pl={12} lts={0.2} bg="#fff" h={22} fw={400} fz={14} c="#000">
-                                            {sortLabel}
-                                        </Text>
-                                    </Button>
-                                
+                                <Button
+                                    color="#000"
+                                    bg="#f7f5f8"
+                                    w={240}
+                                    h={32}
+                                    variant="outline"
+                                    styles={{
+                                        root: {
+                                            fontSize: "14px",
+                                            border: "none",
+                                            borderRadius: "8px",
+                                            alignSelf: "center",
+                                            textAlign: "center",
+                                            display: "flex",
+                                            alignItems: "center",
+                                            justifyContent: "space-between",
+                                            padding: "0 4px",
+                                            height: 22,
+                                        },
+                                    }}
+                                    rightSection={<IconChevronDown size={16} color="#000" />}
+                                >
+                                    <Text pl={12} lts={0.2} bg="#fff" h={22} fw={400} fz={14} c="#000">
+                                        {sortLabel}
+                                    </Text>
+                                </Button>
                             </Menu.Target>
 
                             <Menu.Dropdown>
@@ -258,7 +278,6 @@ const AdsListPage = () => {
                                     По цене (сначала дорогие)
                                 </Menu.Item>
                             </Menu.Dropdown>
-
                         </Menu>
                     </Flex>
                 </Paper>
