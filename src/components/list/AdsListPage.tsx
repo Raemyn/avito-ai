@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { ads } from "../../data/ads";
+import { baseAds, getAds } from "../../data/ads";
 import {
     ActionIcon,
     Box,
@@ -53,7 +53,7 @@ const AdsListPage = () => {
     const normalize = (value: string) => value.toLowerCase().replace(/\s+/g, " ").trim();
 
     const adOrder = useMemo(() => {
-        return new Map(ads.map((ad, index) => [ad.id, index]));
+        return new Map(baseAds.map((ad, index) => [ad.id, index]));
     }, []);
 
     const toggleCategory = (cat: string) => {
@@ -71,22 +71,33 @@ const AdsListPage = () => {
         setSearchTerm("");
         setCurrentPage(1);
     };
-
+    const ads = getAds();
     const filteredAds = useMemo(() => {
         const query = normalize(searchTerm);
 
         return ads.filter((ad) => {
             const categoryOk =
-                selectedCategories.length === 0 || selectedCategories.includes(ad.category);
+                selectedCategories.length === 0 ||
+                selectedCategories.includes(ad.category);
 
             const fixOk = !onlyNeedsFix || ad.needsFix;
 
-            const searchOk = query.length === 0 || normalize(ad.title).includes(query);
+            const searchOk =
+                query.length === 0 ||
+                normalize(ad.title).includes(query);
 
             return categoryOk && fixOk && searchOk;
         });
-    }, [searchTerm, selectedCategories, onlyNeedsFix]);
+    }, [ads, searchTerm, selectedCategories, onlyNeedsFix]);
+    useEffect(() => {
+        const onFocus = () => {
+            // триггерим обновление
+            setCurrentPage((p) => p);
+        };
 
+        window.addEventListener("focus", onFocus);
+        return () => window.removeEventListener("focus", onFocus);
+    }, []);
     const sortedAds = useMemo(() => {
         const list = [...filteredAds];
 

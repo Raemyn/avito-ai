@@ -13,10 +13,17 @@ export type Ad = {
         model?: string;
         color?: string;
         condition?: string;
+        yearOfManufacture?: string;
+        transmission?: string;
+        mileage?: string;
+        enginePower?: string;
+        address?: string;
+        area?: string;
+        floor?: string;
     };
 };
 
-export const ads: Ad[] = [
+export const baseAds: Ad[] = [
     {
         id: 1,
         category: "Электроника",
@@ -25,13 +32,11 @@ export const ads: Ad[] = [
         createdAt: "10 марта 22:39",
         updatedAt: "10 марта 23:12",
         needsFix: true,
-        description: 'Продаю свой MacBook Pro 16" (2021) на чипе M1 Pro. Состояние отличное, работал бережно. Мощности хватает на всё: от сложного монтажа до кода, при этом ноутбук почти не греется.',
+        description: 'Продаю MacBook Pro 16" на M1 Pro. Отличное состояние.',
         params: {
             type: "Ноутбук",
             brand: "Apple",
             model: "M1 Pro",
-            // color: "Серый",
-            // condition: "Б/У",
         },
     },
     {
@@ -42,7 +47,7 @@ export const ads: Ad[] = [
         createdAt: "9 марта 12:10",
         updatedAt: "9 марта 13:00",
         needsFix: false,
-        description: "Почти новый iPhone, без царапин.",
+        description: "Почти новый iPhone.",
         params: {
             type: "Смартфон",
             brand: "Apple",
@@ -59,11 +64,10 @@ export const ads: Ad[] = [
         createdAt: "8 марта 12:20",
         updatedAt: "8 марта 13:00",
         needsFix: false,
-        description: "Отличные беспроводные наушники.",
+        description: "Беспроводные наушники.",
         params: {
             type: "Аудио",
             brand: "Sony",
-            model: "WH-1000XM4",
         },
     },
     {
@@ -71,102 +75,174 @@ export const ads: Ad[] = [
         category: "Авто",
         title: "Volkswagen Polo",
         price: "1100000 ₽",
-        createdAt: "7 марта 10:10",
-        updatedAt: "7 марта 11:00",
+        createdAt: "7 марта",
+        updatedAt: "7 марта",
         needsFix: true,
-        description: "Надёжный городской автомобиль.",
-        params: {
-            brand: "Volkswagen",
-            model: "Polo",
-        },
     },
     {
         id: 5,
         category: "Авто",
         title: "Toyota Camry",
         price: "3900000 ₽",
-        createdAt: "6 марта 15:30",
-        updatedAt: "6 марта 16:00",
+        createdAt: "6 марта",
+        updatedAt: "6 марта",
         needsFix: false,
-        description: "Комфортный бизнес-седан.",
-        params: {
-            brand: "Toyota",
-            model: "Camry",
-        },
     },
     {
         id: 6,
         category: "Авто",
         title: "Omoda C5",
         price: "2900000 ₽",
-        createdAt: "5 марта 11:00",
-        updatedAt: "5 марта 11:30",
+        createdAt: "5 марта",
+        updatedAt: "5 марта",
         needsFix: false,
-        description: "Современный кроссовер.",
     },
     {
         id: 7,
         category: "Недвижимость",
         title: "Студия 25м²",
         price: "15000000 ₽",
-        createdAt: "4 марта 09:00",
-        updatedAt: "4 марта 09:30",
+        createdAt: "4 марта",
+        updatedAt: "4 марта",
         needsFix: false,
-        description: "Уютная квартира-студия.",
     },
     {
         id: 8,
         category: "Недвижимость",
         title: "1-к квартира 44м²",
         price: "19000000 ₽",
-        createdAt: "3 марта 14:00",
-        updatedAt: "3 марта 14:20",
+        createdAt: "3 марта",
+        updatedAt: "3 марта",
         needsFix: true,
-        description: "Просторная однушка.",
     },
     {
         id: 9,
         category: "Недвижимость",
         title: "Дом 120м²",
         price: "35000000 ₽",
-        createdAt: "2 марта 12:00",
-        updatedAt: "2 марта 12:40",
+        createdAt: "2 марта",
+        updatedAt: "2 марта",
         needsFix: false,
-        description: "Загородный дом.",
     },
     {
         id: 10,
         category: "Электроника",
         title: "iPad Air",
         price: "37000 ₽",
-        createdAt: "1 марта 18:00",
-        updatedAt: "1 марта 18:30",
+        createdAt: "1 марта",
+        updatedAt: "1 марта",
         needsFix: false,
-        description: "Планшет Apple.",
-        params: {
-            type: "Планшет",
-            brand: "Apple",
-            model: "Air",
-        },
     },
     {
         id: 11,
         category: "Электроника",
         title: "Marshall Major IV",
         price: "20000 ₽",
-        createdAt: "28 февраля 17:00",
-        updatedAt: "28 февраля 17:20",
+        createdAt: "28 февраля",
+        updatedAt: "28 февраля",
         needsFix: false,
-        description: "Стильные наушники Marshall.",
     },
     {
         id: 12,
         category: "Авто",
         title: "BMW 5 Series",
         price: "4500000 ₽",
-        createdAt: "27 февраля 13:00",
-        updatedAt: "27 февраля 13:30",
+        createdAt: "27 февраля",
+        updatedAt: "27 февраля",
         needsFix: true,
-        description: "Премиум авто в отличном состоянии.",
     },
 ];
+
+const ADS_STORAGE_KEY = "ads-overrides-v1";
+
+/* ================= helpers ================= */
+
+const readJson = <T,>(key: string, fallback: T): T => {
+    if (typeof window === "undefined") return fallback;
+
+    try {
+        const raw = localStorage.getItem(key);
+        return raw ? JSON.parse(raw) : fallback;
+    } catch {
+        return fallback;
+    }
+};
+
+/* ================= CRUD ================= */
+
+export const getAds = () => {
+    const overrides = readJson<Record<string, Ad>>(ADS_STORAGE_KEY, {});
+    return baseAds.map((ad) => {
+        const merged = overrides[String(ad.id)] ?? ad;
+
+        return {
+            ...merged,
+            params: merged.params || {},
+        };
+    });
+};
+
+export const getAdById = (id: number) => {
+    if (!id || Number.isNaN(id)) return undefined;
+    return getAds().find((ad) => ad.id === id);
+};
+
+export const saveAd = (ad: Ad) => {
+    if (typeof window === "undefined") return;
+
+    const overrides = readJson<Record<string, Ad>>(ADS_STORAGE_KEY, {});
+    overrides[String(ad.id)] = ad;
+
+    localStorage.setItem(ADS_STORAGE_KEY, JSON.stringify(overrides));
+};
+
+/* ================= VALIDATION ================= */
+
+export const getMissingFields = (ad: Ad): string[] => {
+    const missing: string[] = [];
+
+    if (!ad.title?.trim()) missing.push("Название");
+
+    if (!ad.price || Number(ad.price.replace(/[^\d]/g, "")) === 0) {
+        missing.push("Цена");
+    }
+
+    if (!ad.description?.trim()) {
+        missing.push("Описание");
+    }
+
+    if (ad.category === "Электроника") {
+        if (!ad.params?.brand) missing.push("Бренд");
+        if (!ad.params?.model) missing.push("Модель");
+    }
+
+    if (ad.category === "Авто") {
+        if (!ad.params?.brand) missing.push("Бренд");
+        if (!ad.params?.model) missing.push("Модель");
+        if (!ad.params?.yearOfManufacture) missing.push("Год выпуска");
+    }
+
+    if (ad.category === "Недвижимость") {
+        if (!ad.params?.address) missing.push("Адрес");
+        if (!ad.params?.area) missing.push("Площадь");
+    }
+
+    return missing;
+};
+
+/* ================= DRAFT ================= */
+
+export const saveDraft = (id: number, data: unknown) => {
+    if (typeof window === "undefined") return;
+
+    localStorage.setItem(
+        `ad-edit-draft-v1-${id}`,
+        JSON.stringify(data)
+    );
+};
+
+export const clearDraft = (id: number) => {
+    if (typeof window === "undefined") return;
+
+    localStorage.removeItem(`ad-edit-draft-v1-${id}`);
+};
