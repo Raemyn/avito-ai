@@ -180,7 +180,7 @@ const AdsListPage = () => {
     const sortLabel = sortLabelMap[sortMode];
     return (
         <Box pt={10} pl={32} pr={32} bg="#f7f5f8">
-            <AdsHeader />
+            <AdsHeader count={filteredAds.length} />
 
             <main>
                 <Paper mt={16} radius={8} p={12} bg="#fff" h={56}>
