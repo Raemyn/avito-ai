@@ -1,16 +1,24 @@
 import { useMemo } from "react";
 import { useNavigate, useParams } from "react-router-dom";
-import {
-    Box,
-    Button,
-    Divider,
-    Flex,
-    Paper,
-    Text,
-    Title,
-} from "@mantine/core";
+import { useQuery } from "@tanstack/react-query";
+import { Box, Button, Divider, Flex, Paper, Text, Title } from "@mantine/core";
 import { IconPencil, IconArrowLeft } from "@tabler/icons-react";
-import { getAdById, getMissingFields } from "../../data/ads";
+import { getItemById } from "../../api/items";
+import { getMissingFields, type Ad } from "../../data/ads";
+
+type ApiCategory = "auto" | "real_estate" | "electronics";
+
+type ApiItemDetail = {
+    id: number;
+    category: ApiCategory;
+    title: string;
+    description?: string;
+    price: number;
+    createdAt: string;
+    updatedAt: string;
+    needsRevision: boolean;
+    params?: Record<string, string | number | null | undefined>;
+};
 
 const paramLabels: Record<string, string> = {
     type: "Тип",
@@ -27,13 +35,90 @@ const paramLabels: Record<string, string> = {
     floor: "Этаж",
 };
 
+const mapCategoryToUi = (category: ApiCategory): Ad["category"] => {
+    switch (category) {
+        case "auto":
+            return "Авто";
+        case "real_estate":
+            return "Недвижимость";
+        case "electronics":
+            return "Электроника";
+    }
+};
+
+const formatDate = (value: string) => {
+    const date = new Date(value);
+    if (Number.isNaN(date.getTime())) return value;
+
+    return date.toLocaleString("ru-RU", {
+        day: "numeric",
+        month: "long",
+        hour: "2-digit",
+        minute: "2-digit",
+    });
+};
+
+const mapItemToUiAd = (item: ApiItemDetail): Ad => ({
+    id: item.id,
+    category: mapCategoryToUi(item.category),
+    title: item.title,
+    price: `${item.price} ₽`,
+    createdAt: formatDate(item.createdAt),
+    updatedAt: formatDate(item.updatedAt),
+    needsFix: item.needsRevision,
+    description: item.description ?? "",
+    params: item.params
+        ? (Object.fromEntries(
+              Object.entries(item.params).map(([key, value]) => [key, value == null ? "" : String(value)])
+          ) as NonNullable<Ad["params"]>)
+        : undefined,
+});
+
 const AdViewPage = () => {
     const { id } = useParams();
     const navigate = useNavigate();
 
+    const itemId = Number(id);
+
+    const { data, isLoading, isError, error, refetch } = useQuery({
+        queryKey: ["item", itemId],
+        queryFn: async (): Promise<ApiItemDetail> => {
+            return (await getItemById(itemId)) as ApiItemDetail;
+        },
+        enabled: Number.isFinite(itemId) && itemId > 0,
+    });
+
     const ad = useMemo(() => {
-        return getAdById(Number(id));
-    }, [id]);
+        if (!data) return null;
+        return mapItemToUiAd(data);
+    }, [data]);
+
+    const missingFields = ad ? getMissingFields(ad) : [];
+
+    if (isLoading) {
+        return (
+            <Box p={40}>
+                <Text>Загрузка объявления...</Text>
+            </Box>
+        );
+    }
+
+    if (isError) {
+        return (
+            <Box p={40}>
+                <Title order={2}>Не удалось загрузить объявление</Title>
+                <Text mt={8} c="red">
+                    {error instanceof Error ? error.message : "Неизвестная ошибка"}
+                </Text>
+                <Button mt={20} variant="outline" onClick={() => refetch()}>
+                    Повторить
+                </Button>
+                <Button mt={12} variant="light" onClick={() => navigate("/ads")}>
+                    Назад
+                </Button>
+            </Box>
+        );
+    }
 
     if (!ad) {
         return (
@@ -46,12 +131,9 @@ const AdViewPage = () => {
         );
     }
 
-    const missingFields = getMissingFields(ad);
-
     return (
-        <Box bg="#f7f5f8" mih="100vh">
+        <Box bg="#f7f5f8" mih="100vh" >
             <Paper radius={24} p={32} bg="#fff">
-                {/* HEADER */}
                 <Flex justify="space-between" align="flex-start">
                     <Box>
                         <Title fw={600} fz={28}>
@@ -89,9 +171,7 @@ const AdViewPage = () => {
 
                 <Divider mt={28} mb={31} />
 
-                {/* CONTENT */}
                 <Flex gap={32}>
-                    {/* IMAGE */}
                     <Box
                         w={480}
                         h={360}
@@ -106,10 +186,17 @@ const AdViewPage = () => {
                         <Text c="#aaa">Нет изображения</Text>
                     </Box>
 
-                    {/* RIGHT */}
-                    <Box flex={1}>
+                    <Box style={{ flex: 1 }}>
                         {missingFields.length > 0 && (
-                            <Paper w={512} radius={12} pl={16} pt={12} pb={20} mb={26} bg="#f9f1e6">
+                            <Paper
+                                w={512}
+                                radius={12}
+                                pl={16}
+                                pt={12}
+                                pb={20}
+                                mb={26}
+                                bg="#f9f1e6"
+                            >
                                 <Flex align="flex-start" gap={16}>
                                     <Box
                                         w={18}
@@ -123,7 +210,9 @@ const AdViewPage = () => {
                                             marginTop: 3,
                                         }}
                                     >
-                                        <Text fz={12} fw={700} c="#fff">!</Text>
+                                        <Text fz={12} fw={700} c="#fff">
+                                            !
+                                        </Text>
                                     </Box>
 
                                     <Box>
@@ -131,9 +220,7 @@ const AdViewPage = () => {
                                             Требуются доработки
                                         </Text>
 
-                                        <Text fz={13}>
-                                            У объявления не заполнены поля:
-                                        </Text>
+                                        <Text fz={13}>У объявления не заполнены поля:</Text>
 
                                         <Box pl={9}>
                                             {missingFields.map((field) => (
@@ -145,7 +232,6 @@ const AdViewPage = () => {
                             </Paper>
                         )}
 
-                        {/* CHARACTERISTICS */}
                         <Title order={3} fz={22} fw={600} mb={14}>
                             Характеристики
                         </Title>
@@ -168,7 +254,6 @@ const AdViewPage = () => {
                     </Box>
                 </Flex>
 
-                {/* DESCRIPTION */}
                 <Box mt={31} w={470}>
                     <Title order={3} fz={22} fw={600} mb={12}>
                         Описание
@@ -179,7 +264,6 @@ const AdViewPage = () => {
                     </Text>
                 </Box>
 
-                {/* BACK BUTTON */}
                 <Flex mt={40}>
                     <Button
                         leftSection={<IconArrowLeft size={16} />}

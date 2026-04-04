@@ -1,14 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import type { CSSProperties } from "react";
 import { useNavigate, useParams } from "react-router-dom";
-import {
-    clearDraft,
-    getAdById,
-    getMissingFields,
-    saveAd,
-    saveDraft,
-    type Ad,
-} from "../../data/ads";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
     Box,
     Button,
@@ -22,8 +15,36 @@ import {
     Title,
 } from "@mantine/core";
 import { IconBulb, IconRefresh, IconCheck } from "@tabler/icons-react";
+import { getItemById, updateItem } from "../../api/items";
+import { getMissingFields, type Ad } from "../../data/ads";
 
 type Category = Ad["category"];
+type ApiCategory = "auto" | "real_estate" | "electronics";
+
+type ApiItemDetail = {
+    id: number;
+    category: ApiCategory;
+    title: string;
+    description?: string;
+    price: number;
+    createdAt: string;
+    updatedAt: string;
+    needsRevision: boolean;
+    params?: {
+        type?: string | null;
+        brand?: string | null;
+        model?: string | null;
+        color?: string | null;
+        condition?: string | null;
+        yearOfManufacture?: number | null;
+        transmission?: "automatic" | "manual" | string | null;
+        mileage?: number | null;
+        enginePower?: number | null;
+        address?: string | null;
+        area?: number | null;
+        floor?: number | null;
+    };
+};
 
 type EditFormState = {
     category: Category;
@@ -41,6 +62,53 @@ type EditFormState = {
     };
 };
 
+type ApiAutoParams = {
+    brand?: string;
+    model?: string;
+    yearOfManufacture?: number;
+    transmission?: "automatic" | "manual";
+    mileage?: number;
+    enginePower?: number;
+};
+
+type ApiRealEstateParams = {
+    type?: "flat" | "house" | "room";
+    address?: string;
+    area?: number;
+    floor?: number;
+};
+
+type ApiElectronicsParams = {
+    type?: "phone" | "laptop" | "misc";
+    brand?: string;
+    model?: string;
+    condition?: "new" | "used";
+    color?: string;
+};
+
+type UpdatePayload =
+    | {
+          category: "auto";
+          title: string;
+          description?: string;
+          price: number;
+          params: ApiAutoParams;
+      }
+    | {
+          category: "real_estate";
+          title: string;
+          description?: string;
+          price: number;
+          params: ApiRealEstateParams;
+      }
+    | {
+          category: "electronics";
+          title: string;
+          description?: string;
+          price: number;
+          params: ApiElectronicsParams;
+      };
+
 const emptyParams = {
     type: "",
     brand: "",
@@ -56,7 +124,7 @@ const emptyParams = {
     floor: "",
 };
 
-const getCategoryParams = (ad?: Ad | null): EditFormState["params"] => ({
+const getCategoryParams = (ad?: ApiItemDetail | null): EditFormState["params"] => ({
     ...emptyParams,
     ...(ad?.params ?? {}),
     type: ad?.params?.type ?? "",
@@ -64,19 +132,31 @@ const getCategoryParams = (ad?: Ad | null): EditFormState["params"] => ({
     model: ad?.params?.model ?? "",
     color: ad?.params?.color ?? "",
     condition: ad?.params?.condition ?? "",
-    yearOfManufacture: ad?.params?.yearOfManufacture ?? "",
+    yearOfManufacture:
+        ad?.params?.yearOfManufacture != null ? String(ad.params.yearOfManufacture) : "",
     transmission: ad?.params?.transmission ?? "",
-    mileage: ad?.params?.mileage ?? "",
-    enginePower: ad?.params?.enginePower ?? "",
+    mileage: ad?.params?.mileage != null ? String(ad.params.mileage) : "",
+    enginePower: ad?.params?.enginePower != null ? String(ad.params.enginePower) : "",
     address: ad?.params?.address ?? "",
-    area: ad?.params?.area ?? "",
-    floor: ad?.params?.floor ?? "",
+    area: ad?.params?.area != null ? String(ad.params.area) : "",
+    floor: ad?.params?.floor != null ? String(ad.params.floor) : "",
 });
 
-const getInitialState = (ad: Ad): EditFormState => ({
-    category: ad.category,
+const mapCategoryToUi = (category: ApiCategory): Category => {
+    switch (category) {
+        case "auto":
+            return "Авто";
+        case "real_estate":
+            return "Недвижимость";
+        case "electronics":
+            return "Электроника";
+    }
+};
+
+const getInitialState = (ad: ApiItemDetail): EditFormState => ({
+    category: mapCategoryToUi(ad.category),
     title: ad.title,
-    price: ad.price.replace(/[^\d]/g, ""),
+    price: String(ad.price),
     description: ad.description ?? "",
     params: getCategoryParams(ad),
 });
@@ -105,34 +185,48 @@ const getOptionalInputStyles = (value?: string): { input: CSSProperties } => ({
     },
 });
 
+const toOptionalNumber = (value?: string) => {
+    if (!value || !value.trim()) return undefined;
+    const parsed = Number(value.replace(/[^\d.]/g, ""));
+    return Number.isFinite(parsed) ? parsed : undefined;
+};
+
 const AdEditPage = () => {
     const { id } = useParams();
     const navigate = useNavigate();
+    const queryClient = useQueryClient();
 
-    const ad = useMemo(() => {
-        return getAdById(Number(id));
-    }, [id]);
-
+    const itemId = Number(id);
     const draftKey = Number(id || 0);
+
+    const { data, isLoading, isError, error, refetch } = useQuery({
+        queryKey: ["item", itemId],
+        queryFn: async (): Promise<ApiItemDetail> => {
+            return (await getItemById(itemId)) as ApiItemDetail;
+        },
+        enabled: Number.isFinite(itemId) && itemId > 0,
+    });
+
+    const item = useMemo(() => data ?? null, [data]);
 
     const [form, setForm] = useState<EditFormState | null>(null);
     const [saved, setSaved] = useState(false);
     const [errors, setErrors] = useState<{ title?: string; price?: string }>({});
 
     useEffect(() => {
-        if (!ad) return;
+        if (!item) return;
 
         const draft = localStorage.getItem(`ad-edit-draft-v1-${draftKey}`);
         if (draft) {
             try {
                 const parsed = JSON.parse(draft) as Partial<EditFormState>;
                 setForm({
-                    category: (parsed.category ?? ad.category) as Category,
-                    title: parsed.title ?? ad.title,
-                    price: parsed.price ?? ad.price.replace(/[^\d]/g, ""),
-                    description: parsed.description ?? ad.description ?? "",
+                    category: (parsed.category ?? mapCategoryToUi(item.category)) as Category,
+                    title: parsed.title ?? item.title,
+                    price: parsed.price ?? String(item.price),
+                    description: parsed.description ?? item.description ?? "",
                     params: {
-                        ...getCategoryParams(ad),
+                        ...getCategoryParams(item),
                         ...(parsed.params ?? {}),
                     },
                 });
@@ -142,15 +236,58 @@ const AdEditPage = () => {
             }
         }
 
-        setForm(getInitialState(ad));
-    }, [ad, draftKey]);
+        setForm(getInitialState(item));
+    }, [item, draftKey]);
 
     useEffect(() => {
         if (!form || !id) return;
-        saveDraft(draftKey, form);
+        localStorage.setItem(`ad-edit-draft-v1-${draftKey}`, JSON.stringify(form));
     }, [form, id, draftKey]);
 
-    if (!ad || !form) {
+    const updateMutation = useMutation({
+        mutationFn: async (payload: UpdatePayload) => {
+            return updateItem(itemId, payload);
+        },
+        onSuccess: async () => {
+            await queryClient.invalidateQueries({ queryKey: ["item", itemId] });
+            await queryClient.invalidateQueries({ queryKey: ["ads"] });
+
+            localStorage.removeItem(`ad-edit-draft-v1-${draftKey}`);
+            setSaved(true);
+
+            setTimeout(() => {
+                setSaved(false);
+                navigate(`/ads/${itemId}`);
+            }, 1500);
+        },
+    });
+
+    if (isLoading) {
+        return (
+            <Box p={40}>
+                <Text>Загрузка объявления...</Text>
+            </Box>
+        );
+    }
+
+    if (isError) {
+        return (
+            <Box p={40}>
+                <Title order={2}>Не удалось загрузить объявление</Title>
+                <Text mt={8} c="red">
+                    {error instanceof Error ? error.message : "Неизвестная ошибка"}
+                </Text>
+                <Button mt={20} variant="outline" onClick={() => refetch()}>
+                    Повторить
+                </Button>
+                <Button mt={12} variant="light" onClick={() => navigate("/ads")}>
+                    Назад
+                </Button>
+            </Box>
+        );
+    }
+
+    if (!item || !form) {
         return (
             <Box p={40}>
                 <Title order={2}>Объявление не найдено</Title>
@@ -227,69 +364,91 @@ const AdEditPage = () => {
 
         const normalizedPrice = Number(form.price.replace(/[^\d]/g, "")) || 0;
 
-        const nextAd: Ad = {
-            ...ad,
-            category: form.category,
-            title: form.title.trim(),
-            price: `${normalizedPrice} ₽`,
-            description: form.description.trim(),
-            params: {
-                type: form.params.type || undefined,
-                brand: form.params.brand || undefined,
-                model: form.params.model || undefined,
-                color: form.params.color || undefined,
-                condition: form.params.condition || undefined,
-                yearOfManufacture: form.params.yearOfManufacture || undefined,
-                transmission: form.params.transmission || undefined,
-                mileage: form.params.mileage || undefined,
-                enginePower: form.params.enginePower || undefined,
-                address: form.params.address || undefined,
-                area: form.params.area || undefined,
-                floor: form.params.floor || undefined,
-            },
-            needsFix:
-                getMissingFields({
-                    ...ad,
-                    category: form.category,
-                    title: form.title,
-                    price: `${normalizedPrice} ₽`,
-                    description: form.description,
-                    params: {
-                        type: form.params.type || undefined,
-                        brand: form.params.brand || undefined,
-                        model: form.params.model || undefined,
-                        color: form.params.color || undefined,
-                        condition: form.params.condition || undefined,
-                        yearOfManufacture: form.params.yearOfManufacture || undefined,
-                        transmission: form.params.transmission || undefined,
-                        mileage: form.params.mileage || undefined,
-                        enginePower: form.params.enginePower || undefined,
-                        address: form.params.address || undefined,
-                        area: form.params.area || undefined,
-                        floor: form.params.floor || undefined,
-                    },
-                }).length > 0,
-            updatedAt: new Date().toLocaleString("ru-RU", {
-                day: "numeric",
-                month: "long",
-                hour: "2-digit",
-                minute: "2-digit",
-            }),
-        };
+        const payload: UpdatePayload =
+            form.category === "Авто"
+                ? {
+                      category: "auto",
+                      title: form.title.trim(),
+                      description: form.description.trim() || undefined,
+                      price: normalizedPrice,
+                      params: {
+                          brand: form.params.brand || undefined,
+                          model: form.params.model || undefined,
+                          yearOfManufacture: toOptionalNumber(form.params.yearOfManufacture),
+                          transmission:
+                              form.params.transmission === "manual" ||
+                              form.params.transmission === "automatic"
+                                  ? form.params.transmission
+                                  : undefined,
+                          mileage: toOptionalNumber(form.params.mileage),
+                          enginePower: toOptionalNumber(form.params.enginePower),
+                      },
+                  }
+                : form.category === "Недвижимость"
+                  ? {
+                        category: "real_estate",
+                        title: form.title.trim(),
+                        description: form.description.trim() || undefined,
+                        price: normalizedPrice,
+                        params: {
+                            type:
+                                form.params.type === "flat" ||
+                                form.params.type === "house" ||
+                                form.params.type === "room"
+                                    ? form.params.type
+                                    : undefined,
+                            address: form.params.address || undefined,
+                            area: toOptionalNumber(form.params.area),
+                            floor: toOptionalNumber(form.params.floor),
+                        },
+                    }
+                  : {
+                        category: "electronics",
+                        title: form.title.trim(),
+                        description: form.description.trim() || undefined,
+                        price: normalizedPrice,
+                        params: {
+                            type:
+                                form.params.type === "phone" ||
+                                form.params.type === "laptop" ||
+                                form.params.type === "misc"
+                                    ? form.params.type
+                                    : undefined,
+                            brand: form.params.brand || undefined,
+                            model: form.params.model || undefined,
+                            condition:
+                                form.params.condition === "new" || form.params.condition === "used"
+                                    ? form.params.condition
+                                    : undefined,
+                            color: form.params.color || undefined,
+                        },
+                    };
 
-        saveAd(nextAd);
-        clearDraft(draftKey);
-        setSaved(true);
-
-        setTimeout(() => {
-            setSaved(false);
-            navigate(`/ads/${ad.id}`);
-        }, 1500);
+        updateMutation.mutate(payload);
     };
 
     const handleCancel = () => {
-        clearDraft(draftKey);
-        navigate(`/ads/${ad.id}`);
+        localStorage.removeItem(`ad-edit-draft-v1-${draftKey}`);
+        navigate(`/ads/${itemId}`);
+    };
+
+    const uiAd: Ad = {
+        id: item.id,
+        category: mapCategoryToUi(item.category),
+        title: item.title,
+        price: `${item.price} ₽`,
+        createdAt: item.createdAt,
+        updatedAt: item.updatedAt,
+        needsFix: item.needsRevision,
+        description: item.description ?? "",
+        params: item.params
+            ? (Object.fromEntries(
+                  Object.entries(item.params).map(([key, value]) => [
+                      key,
+                      value == null ? "" : String(value),
+                  ])
+              ) as NonNullable<Ad["params"]>)
+            : undefined,
     };
 
     return (
@@ -359,7 +518,7 @@ const AdEditPage = () => {
                     <Divider color="#ededed" />
 
                     <Box>
-                        <Text fw={600} fz={16} lh="140%"  c="#000">
+                        <Text fw={600} fz={16} lh="140%" c="#000">
                             <span style={{ color: "#ff4d4f" }}>*</span> Название
                         </Text>
 
@@ -400,10 +559,7 @@ const AdEditPage = () => {
                             <TextInput
                                 value={form.price}
                                 onChange={(e) => {
-                                    updateField(
-                                        "price",
-                                        e.currentTarget.value.replace(/[^\d]/g, "")
-                                    );
+                                    updateField("price", e.currentTarget.value.replace(/[^\d]/g, ""));
                                     if (errors.price) {
                                         setErrors((prev) => ({ ...prev, price: undefined }));
                                     }
@@ -609,7 +765,7 @@ const AdEditPage = () => {
                     <Flex gap={12} mt={8}>
                         <Button
                             onClick={handleSave}
-                            disabled={!isValid}
+                            disabled={!isValid || updateMutation.isPending}
                             style={{
                                 background: isValid ? "#1890ff" : "#f3f3f3",
                                 color: isValid ? "#fff" : "#999",
@@ -628,6 +784,12 @@ const AdEditPage = () => {
                             Отменить
                         </Button>
                     </Flex>
+
+                    <Box mt={8}>
+                        <Text fz={12} c="#8b8b8b">
+                            Требуются доработки: {getMissingFields(uiAd).length}
+                        </Text>
+                    </Box>
                 </Flex>
             </Paper>
         </Box>

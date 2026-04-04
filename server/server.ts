@@ -1,10 +1,10 @@
-import Fastify from 'fastify';
+import Fastify from "fastify";
 
-import items from 'data/items.json' with { type: 'json' };
-import { Item } from 'src/types.ts';
-import { ItemsGetInQuerySchema, ItemUpdateInSchema } from 'src/validation.ts';
-import { treeifyError, ZodError } from 'zod';
-import { doesItemNeedRevision } from './src/utils.ts';
+import items from "data/items.json" with { type: "json" };
+import type { Item } from "src/types.ts";
+import { ItemsGetInQuerySchema, ItemUpdateInSchema } from "src/validation.ts";
+import { treeifyError, ZodError } from "zod";
+import { doesItemNeedRevision } from "./src/utils.ts";
 
 const ITEMS = items as Item[];
 
@@ -12,17 +12,25 @@ const fastify = Fastify({
   logger: true,
 });
 
-await fastify.register((await import('@fastify/middie')).default);
+const setCorsHeaders = (reply: any) => {
+  reply.header("Access-Control-Allow-Origin", "*");
+  reply.header("Access-Control-Allow-Methods", "GET,PUT,OPTIONS");
+  reply.header("Access-Control-Allow-Headers", "Content-Type, Authorization");
+  reply.header("Access-Control-Max-Age", "86400");
+};
 
-// Искуственная задержка ответов, чтобы можно было протестировать состояния загрузки
-fastify.use((_, __, next) =>
-  new Promise(res => setTimeout(res, 300 + Math.random() * 700)).then(next),
-);
+fastify.addHook("onRequest", async (request, reply) => {
+  setCorsHeaders(reply);
 
-// Настройка CORS
-fastify.use((_, reply, next) => {
-  reply.setHeader('Access-Control-Allow-Origin', '*');
-  next();
+  if (request.method === "OPTIONS") {
+    reply.code(204).send();
+    return;
+  }
+
+  // Искуственная задержка ответов, чтобы можно было протестировать состояния загрузки
+  await new Promise((res) =>
+    setTimeout(res, 300 + Math.random() * 700)
+  );
 });
 
 interface ItemGetRequest extends Fastify.RequestGenericInterface {
@@ -31,17 +39,17 @@ interface ItemGetRequest extends Fastify.RequestGenericInterface {
   };
 }
 
-fastify.get<ItemGetRequest>('/items/:id', (request, reply) => {
+fastify.get<ItemGetRequest>("/items/:id", (request, reply) => {
   const itemId = Number(request.params.id);
 
   if (!Number.isFinite(itemId)) {
     reply
       .status(400)
-      .send({ success: false, error: 'Item ID path param should be a number' });
+      .send({ success: false, error: "Item ID path param should be a number" });
     return;
   }
 
-  const item = ITEMS.find(item => item.id === itemId);
+  const item = ITEMS.find((item) => item.id === itemId);
 
   if (!item) {
     reply
@@ -66,7 +74,7 @@ interface ItemsGetRequest extends Fastify.RequestGenericInterface {
   };
 }
 
-fastify.get<ItemsGetRequest>('/items', request => {
+fastify.get<ItemsGetRequest>("/items", (request) => {
   const {
     q,
     limit,
@@ -77,12 +85,12 @@ fastify.get<ItemsGetRequest>('/items', request => {
     sortDirection,
   } = ItemsGetInQuerySchema.parse(request.query);
 
-  const filteredItems = ITEMS.filter(item => {
+  const filteredItems = ITEMS.filter((item) => {
     return (
       item.title.toLowerCase().includes(q.toLowerCase()) &&
       (!needsRevision || doesItemNeedRevision(item)) &&
       (!categories?.length ||
-        categories.some(category => item.category === category))
+        categories.some((category) => item.category === category))
     );
   });
 
@@ -93,18 +101,19 @@ fastify.get<ItemsGetRequest>('/items', request => {
 
         if (!sortDirection) return comparisonValue;
 
-        if (sortColumn === 'title') {
+        if (sortColumn === "title") {
           comparisonValue = item1.title.localeCompare(item2.title);
-        } else if (sortColumn === 'createdAt') {
+        } else if (sortColumn === "createdAt") {
           comparisonValue =
             new Date(item1.createdAt).valueOf() -
             new Date(item2.createdAt).valueOf();
         }
 
-        return (sortDirection === 'desc' ? -1 : 1) * comparisonValue;
+        return (sortDirection === "desc" ? -1 : 1) * comparisonValue;
       })
       .slice(skip, skip + limit)
-      .map(item => ({
+      .map((item) => ({
+        id: item.id,
         category: item.category,
         title: item.title,
         price: item.price,
@@ -120,17 +129,17 @@ interface ItemUpdateRequest extends Fastify.RequestGenericInterface {
   };
 }
 
-fastify.put<ItemUpdateRequest>('/items/:id', (request, reply) => {
+fastify.put<ItemUpdateRequest>("/items/:id", (request, reply) => {
   const itemId = Number(request.params.id);
 
   if (!Number.isFinite(itemId)) {
     reply
       .status(400)
-      .send({ success: false, error: 'Item ID path param should be a number' });
+      .send({ success: false, error: "Item ID path param should be a number" });
     return;
   }
 
-  const itemIndex = ITEMS.findIndex(item => item.id === itemId);
+  const itemIndex = ITEMS.findIndex((item) => item.id === itemId);
 
   if (itemIndex === -1) {
     reply
@@ -141,7 +150,6 @@ fastify.put<ItemUpdateRequest>('/items/:id', (request, reply) => {
 
   try {
     const parsedData = ItemUpdateInSchema.parse({
-      category: ITEMS[itemIndex].category,
       ...(request.body as {}),
     });
 
