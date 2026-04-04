@@ -1,4 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
+import { useNavigate } from "react-router-dom";
+import { ads } from "../../data/ads";
 import {
     ActionIcon,
     Box,
@@ -25,14 +27,6 @@ import {
 } from "@tabler/icons-react";
 import AdsHeader from "./AdsHeader";
 
-type AdItem = {
-    category: string;
-    title: string;
-    price: string;
-    needsFix?: boolean;
-    createdAt: number;
-};
-
 type SortMode =
     | "new"
     | "old"
@@ -42,6 +36,8 @@ type SortMode =
     | "title_desc";
 
 const AdsListPage = () => {
+    const navigate = useNavigate();
+
     const [view, setView] = useState<"grid" | "list">("grid");
     const [sortMode, setSortMode] = useState<SortMode>("new");
     const [categoriesOpen, setCategoriesOpen] = useState(false);
@@ -52,23 +48,13 @@ const AdsListPage = () => {
 
     const categories = ["Авто", "Электроника", "Недвижимость"];
     const adsPerPage = view === "list" ? 4 : 10;
-    const ads: AdItem[] = [
-        { category: "Электроника", title: "Наушники", price: "2990 ₽", createdAt: 5 },
-        { category: "Авто", title: "Volkswagen Polo", price: "1100000 ₽", needsFix: true, createdAt: 4 },
-        { category: "Недвижимость", title: "Студия, 25м²", price: "15000000 ₽", createdAt: 3 },
-        { category: "Недвижимость", title: "1-кк, 44м²", price: "19000000 ₽", needsFix: true, createdAt: 2 },
-        { category: "Электроника", title: "MacBook Pro 16”", price: "64000 ₽", needsFix: true, createdAt: 1 },
-        { category: "Авто", title: "Omoda C5", price: "2900000 ₽", createdAt: 6 },
-        { category: "Электроника", title: "iPad Air 11, 2024 г.", price: "37000 ₽", createdAt: 7 },
-        { category: "Электроника", title: "MAJOR VI", price: "20000 ₽", createdAt: 8 },
-        { category: "Авто", title: "Toyota Camry", price: "3900000 ₽", needsFix: true, createdAt: 9 },
-        { category: "Электроника", title: "iPhone 17 Pro Max", price: "107000 ₽", createdAt: 10 },
-        { category: "Электроника", title: "iPhone 17 Pro Max", price: "107000 ₽", createdAt: 11 },
-    ];
 
     const parsePrice = (price: string) => Number(price.replace(/[^\d]/g, "")) || 0;
-
     const normalize = (value: string) => value.toLowerCase().replace(/\s+/g, " ").trim();
+
+    const adOrder = useMemo(() => {
+        return new Map(ads.map((ad, index) => [ad.id, index]));
+    }, []);
 
     const toggleCategory = (cat: string) => {
         setSelectedCategories((prev) =>
@@ -114,11 +100,15 @@ const AdsListPage = () => {
                 break;
 
             case "new":
-                list.sort((a, b) => b.createdAt - a.createdAt);
+                list.sort(
+                    (a, b) => (adOrder.get(b.id) ?? 0) - (adOrder.get(a.id) ?? 0)
+                );
                 break;
 
             case "old":
-                list.sort((a, b) => a.createdAt - b.createdAt);
+                list.sort(
+                    (a, b) => (adOrder.get(a.id) ?? 0) - (adOrder.get(b.id) ?? 0)
+                );
                 break;
 
             case "title_asc":
@@ -131,7 +121,7 @@ const AdsListPage = () => {
         }
 
         return list;
-    }, [filteredAds, sortMode]);
+    }, [filteredAds, sortMode, adOrder]);
 
     const totalPages = Math.ceil(sortedAds.length / adsPerPage);
 
@@ -140,6 +130,10 @@ const AdsListPage = () => {
             setCurrentPage(1);
         }
     }, [currentPage, totalPages]);
+
+    useEffect(() => {
+        setCurrentPage(1);
+    }, [view, sortMode]);
 
     const displayedAds = sortedAds.slice(
         (currentPage - 1) * adsPerPage,
@@ -168,7 +162,7 @@ const AdsListPage = () => {
 
     const visiblePages = getVisiblePages();
 
-    const sortLabelMap = {
+    const sortLabelMap: Record<SortMode, string> = {
         new: "По новизне (сначала новые)",
         old: "По новизне (сначала старые)",
         cheap: "По цене (сначала дешевле)",
@@ -178,6 +172,7 @@ const AdsListPage = () => {
     };
 
     const sortLabel = sortLabelMap[sortMode];
+
     return (
         <Box pt={10} pl={32} pr={32} bg="#f7f5f8">
             <AdsHeader count={filteredAds.length} />
@@ -218,9 +213,7 @@ const AdsListPage = () => {
                                     variant="subtle"
                                     onClick={() => setView("grid")}
                                     aria-pressed={view === "grid"}
-                                    style={{
-                                        borderRadius: 8,
-                                    }}
+                                    style={{ borderRadius: 8 }}
                                 >
                                     <IconLayoutGrid
                                         size={22}
@@ -236,9 +229,7 @@ const AdsListPage = () => {
                                     variant="subtle"
                                     onClick={() => setView("list")}
                                     aria-pressed={view === "list"}
-                                    style={{
-                                        borderRadius: 8,
-                                    }}
+                                    style={{ borderRadius: 8 }}
                                 >
                                     <IconList
                                         size={22}
@@ -280,30 +271,60 @@ const AdsListPage = () => {
 
                             <Menu.Dropdown>
                                 <Menu.Label>Название</Menu.Label>
-                                <Menu.Item onClick={() => { setSortMode("title_asc"); setCurrentPage(1); }}>
+                                <Menu.Item
+                                    onClick={() => {
+                                        setSortMode("title_asc");
+                                        setCurrentPage(1);
+                                    }}
+                                >
                                     А → Я
                                 </Menu.Item>
-                                <Menu.Item onClick={() => { setSortMode("title_desc"); setCurrentPage(1); }}>
+                                <Menu.Item
+                                    onClick={() => {
+                                        setSortMode("title_desc");
+                                        setCurrentPage(1);
+                                    }}
+                                >
                                     Я → А
                                 </Menu.Item>
 
                                 <Menu.Divider />
 
                                 <Menu.Label>Новизна</Menu.Label>
-                                <Menu.Item onClick={() => { setSortMode("new"); setCurrentPage(1); }}>
+                                <Menu.Item
+                                    onClick={() => {
+                                        setSortMode("new");
+                                        setCurrentPage(1);
+                                    }}
+                                >
                                     Сначала новые
                                 </Menu.Item>
-                                <Menu.Item onClick={() => { setSortMode("old"); setCurrentPage(1); }}>
+                                <Menu.Item
+                                    onClick={() => {
+                                        setSortMode("old");
+                                        setCurrentPage(1);
+                                    }}
+                                >
                                     Сначала старые
                                 </Menu.Item>
 
                                 <Menu.Divider />
 
                                 <Menu.Label>Цена</Menu.Label>
-                                <Menu.Item onClick={() => { setSortMode("cheap"); setCurrentPage(1); }}>
+                                <Menu.Item
+                                    onClick={() => {
+                                        setSortMode("cheap");
+                                        setCurrentPage(1);
+                                    }}
+                                >
                                     Сначала дешевле
                                 </Menu.Item>
-                                <Menu.Item onClick={() => { setSortMode("expensive"); setCurrentPage(1); }}>
+                                <Menu.Item
+                                    onClick={() => {
+                                        setSortMode("expensive");
+                                        setCurrentPage(1);
+                                    }}
+                                >
                                     Сначала дороже
                                 </Menu.Item>
                             </Menu.Dropdown>
@@ -437,9 +458,10 @@ const AdsListPage = () => {
                                     justifyContent: "start",
                                 }}
                             >
-                                {displayedAds.map((ad, index) => (
+                                {displayedAds.map((ad) => (
                                     <Paper
-                                        key={index}
+                                        key={ad.id}
+                                        onClick={() => navigate(`/ads/${ad.id}`)}
                                         radius={16}
                                         w={200}
                                         h={268}
@@ -448,6 +470,7 @@ const AdsListPage = () => {
                                         style={{
                                             overflow: "hidden",
                                             position: "relative",
+                                            cursor: "pointer",
                                         }}
                                     >
                                         <Box
@@ -532,9 +555,10 @@ const AdsListPage = () => {
                                     width: "100%",
                                 }}
                             >
-                                {displayedAds.map((ad, index) => (
+                                {displayedAds.map((ad) => (
                                     <Paper
-                                        key={index}
+                                        key={ad.id}
+                                        onClick={() => navigate(`/ads/${ad.id}`)}
                                         radius={16}
                                         w="100%"
                                         h={132}
@@ -544,6 +568,7 @@ const AdsListPage = () => {
                                             border: "1px solid #f0f0f0",
                                             boxSizing: "border-box",
                                             overflow: "hidden",
+                                            cursor: "pointer",
                                         }}
                                     >
                                         <Flex h="100%">
