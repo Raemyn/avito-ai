@@ -92,6 +92,7 @@ const AdEditPage = () => {
 
     const [form, setForm] = useState<EditFormState | null>(null);
     const [saved, setSaved] = useState(false);
+    const [errors, setErrors] = useState<{ title?: string; price?: string }>({});
 
     useEffect(() => {
         if (!ad) return;
@@ -139,6 +140,7 @@ const AdEditPage = () => {
         setForm((prev) => (prev ? { ...prev, [key]: value } : prev));
     };
 
+
     const updateParam = (key: keyof EditFormState["params"], value: string) => {
         setForm((prev) =>
             prev
@@ -152,6 +154,17 @@ const AdEditPage = () => {
                 : prev
         );
     };
+
+     const isValid = form.title.trim() && form.price;
+        const validateField = (field: "title" | "price") => {
+            if (field === "title" && !form.title.trim()) {
+                setErrors((e) => ({ ...e, title: "Название должно быть заполнено" }));
+            } else if (field === "price" && !form.price) {
+                setErrors((e) => ({ ...e, price: "Цена должна быть заполнена" }));
+            } else {
+                setErrors((e) => ({ ...e, [field]: undefined }));
+            }
+        };
 
     const handleSuggestDescription = () => {
         setForm((prev) =>
@@ -182,6 +195,7 @@ const AdEditPage = () => {
     };
 
     const handleSave = () => {
+       
         const normalizedPrice = Number(form.price.replace(/[^\d]/g, "")) || 0;
 
         const nextAd: Ad = {
@@ -315,29 +329,38 @@ const AdEditPage = () => {
 
                     <Divider color="#ededed" />
 
-                    <TextInput
-                        label={
-                            <Flex align="center" gap={4}>
-                                <Text c="#ff4d4f">*</Text>
-                                <Text fw={600}>Название</Text>
-                            </Flex>
-                        }
-                        value={form.title}
-                        onChange={(e) => updateField("title", e.currentTarget.value)}
-                        radius={8}
-                        w={450}
-                        rightSection={form.title ? <IconX size={14} color="#bdbdbd" /> : null}
-                    />
+                    <Box>
+                        <Text>
+                            <span style={{ color: "red" }}>*</span> Название
+                        </Text>
+
+                        <TextInput
+                            value={form.title}
+                            onChange={(e) => updateField("title", e.currentTarget.value)}
+                            onBlur={() => validateField("title")}
+                            radius={8}
+                            w={450}
+                            styles={{
+                                input: {
+                                    border: "1px solid #d9d9d9",
+                                    height: 28,
+                                },
+                            }}
+                        />
+
+                        {errors.title && (
+                            <Text style={{ fontSize: 12, color: "#ec221f" }}>
+                                {errors.title}
+                            </Text>
+                        )}
+                    </Box>
 
                     <Divider color="#ededed" />
 
                     <Flex align="flex-end" gap={20} wrap="wrap">
                         <Box>
-                            <Text mb={8} fw={600}>
-                                <Text span c="#ff4d4f">
-                                    *
-                                </Text>{" "}
-                                Цена
+                            <Text mb={8}>
+                                <span style={{ color: "red" }}>*</span> Цена
                             </Text>
 
                             <TextInput
@@ -345,9 +368,22 @@ const AdEditPage = () => {
                                 onChange={(e) =>
                                     updateField("price", e.currentTarget.value.replace(/[^\d]/g, ""))
                                 }
+                                onBlur={() => validateField("price")}
                                 radius={8}
                                 w={450}
+                                styles={{
+                                    input: {
+                                        border: "1px solid #d9d9d9",
+                                        height: 28,
+                                    },
+                                }}
                             />
+
+                            {errors.price && (
+                                <Text style={{ fontSize: 12, color: "#ec221f" }}>
+                                    {errors.price}
+                                </Text>
+                            )}
                         </Box>
 
                         <Button
@@ -531,7 +567,13 @@ const AdEditPage = () => {
                     </Box>
 
                     <Flex gap={12} mt={8}>
-                        <Button onClick={handleSave} radius={8} bg="#1890ff" fw={400}>
+                        <Button
+                            onClick={handleSave}
+                            disabled={!isValid}
+                            style={{
+                                background: isValid ? "#1890ff" : "#f3f3f3",
+                                color: isValid ? "#fff" : "#999",
+                            }}>
                             Сохранить
                         </Button>
 
