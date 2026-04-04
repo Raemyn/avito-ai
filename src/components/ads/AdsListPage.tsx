@@ -9,13 +9,20 @@ import {
     Flex,
     Menu,
     Paper,
-
     Switch,
     Text,
     TextInput,
     Title,
 } from "@mantine/core";
-import { IconChevronDown, IconLayoutGrid, IconList, IconPhoto, IconSearch } from "@tabler/icons-react";
+import {
+    IconChevronDown,
+    IconChevronLeft,
+    IconChevronRight,
+    IconLayoutGrid,
+    IconList,
+    IconPhoto,
+    IconSearch,
+} from "@tabler/icons-react";
 import AdsHeader from "./AdsHeader";
 
 type AdItem = {
@@ -31,19 +38,22 @@ const AdsListPage = () => {
     const [categoriesOpen, setCategoriesOpen] = useState(false);
     const [selectedCategories, setSelectedCategories] = useState<string[]>([]);
     const [onlyNeedsFix, setOnlyNeedsFix] = useState(false);
+    const [currentPage, setCurrentPage] = useState(1);
 
     const categories = ["Авто", "Электроника", "Недвижимость"];
+    const adsPerPage = 10;
 
     const ads: AdItem[] = [
-        { category: "Электроника", title: "Наушники", price: "2990 ₽", },
+        { category: "Электроника", title: "Наушники", price: "2990 ₽" },
         { category: "Авто", title: "Volkswagen Polo", price: "1100000 ₽", needsFix: true },
         { category: "Недвижимость", title: "Студия, 25м²", price: "15000000 ₽" },
         { category: "Недвижимость", title: "1-кк, 44м²", price: "19000000 ₽", needsFix: true },
         { category: "Электроника", title: "MacBook Pro 16”", price: "64000 ₽", needsFix: true },
         { category: "Авто", title: "Omoda C5", price: "2900000 ₽" },
-        { category: "Электроника", title: "iPad Air 11, 2024 г.", price: "37000 ₽", },
+        { category: "Электроника", title: "iPad Air 11, 2024 г.", price: "37000 ₽" },
         { category: "Электроника", title: "MAJOR VI", price: "20000 ₽" },
         { category: "Авто", title: "Toyota Camry", price: "3900000 ₽", needsFix: true },
+        { category: "Электроника", title: "iPhone 17 Pro Max", price: "107000 ₽" },
         { category: "Электроника", title: "iPhone 17 Pro Max", price: "107000 ₽" },
     ];
 
@@ -51,12 +61,14 @@ const AdsListPage = () => {
         setSelectedCategories((prev) =>
             prev.includes(cat) ? prev.filter((c) => c !== cat) : [...prev, cat]
         );
+        setCurrentPage(1);
     };
 
     const resetFilters = () => {
         setSelectedCategories([]);
         setCategoriesOpen(false);
         setOnlyNeedsFix(false);
+        setCurrentPage(1);
     };
 
     const filteredAds = ads.filter((ad) => {
@@ -65,6 +77,41 @@ const AdsListPage = () => {
         const fixOk = !onlyNeedsFix || ad.needsFix;
         return categoryOk && fixOk;
     });
+
+    const totalPages = Math.ceil(filteredAds.length / adsPerPage);
+
+    const displayedAds = filteredAds.slice(
+        (currentPage - 1) * adsPerPage,
+        currentPage * adsPerPage
+    );
+
+    const handlePageChange = (page: number) => {
+        if (page >= 1 && page <= totalPages) setCurrentPage(page);
+    };
+
+    const getVisiblePages = () => {
+        if (totalPages <= 5) {
+            return Array.from({ length: totalPages }, (_, i) => i + 1);
+        }
+
+        if (currentPage <= 3) {
+            return [1, 2, 3, 4, 5];
+        }
+
+        if (currentPage >= totalPages - 2) {
+            return [totalPages - 4, totalPages - 3, totalPages - 2, totalPages - 1, totalPages];
+        }
+
+        return [
+            currentPage - 2,
+            currentPage - 1,
+            currentPage,
+            currentPage + 1,
+            currentPage + 2,
+        ];
+    };
+
+    const visiblePages = getVisiblePages();
 
     return (
         <Box pt={10} pl={32} pr={32} bg="#f7f5f8">
@@ -274,17 +321,18 @@ const AdsListPage = () => {
                         </Button>
                     </Flex>
 
-                    <Box flex={1}>
+                    <Flex direction="column" flex={1} >
                         <Box
                             style={{
-                                marginRight: '2px',
+                                marginRight: "2px",
                                 display: "grid",
-                                gridTemplateColumns: "repeat(5, minmax(0, 1fr))",
-                                columnGap: '13.75px',
-                                rowGap: '12px'
+                                gridTemplateColumns: "repeat(5, 200px)",
+                                columnGap: "13.75px",
+                                rowGap: "12px",
+                                justifyContent: "start",
                             }}
                         >
-                            {filteredAds.map((ad, index) => (
+                            {displayedAds.map((ad, index) => (
                                 <Paper
                                     key={index}
                                     radius={16}
@@ -312,7 +360,6 @@ const AdsListPage = () => {
                                     </Box>
 
                                     <Box
-
                                         h={22}
                                         style={{
                                             position: "absolute",
@@ -334,59 +381,109 @@ const AdsListPage = () => {
                                             {ad.category}
                                         </Text>
                                     </Box>
-                                    {/* тУТА */}
-                                    <Box p={16}
-                                        pr={28}
-                                        pt={21}>
+
+                                    <Box p={16} pr={28} pt={21}>
                                         <Text
                                             w={168}
                                             h={24}
                                             mb={5}
                                             fz={16}
                                             fw={400}
-                                            lh='24px'
-
+                                            lh="24px"
+                                            c="#000"
                                         >
                                             {ad.title}
                                         </Text>
 
                                         <Text
-                                            lts={1.9}
                                             fz={16}
                                             fw={600}
                                             lh={1.4}
-                                            color="#0000"
-
+                                            c="rgba(0, 0, 0, 0.45)"
                                         >
                                             {ad.price}
                                         </Text>
 
                                         {ad.needsFix && (
-                                            <Paper radius={8} bg='#f9f1e6' pl={9} p={2} mt={4}>
+                                            <Paper radius={8} bg="#f9f1e6" pl={9} p={2} mt={4}>
                                                 <Flex align="center" gap={6}>
-                                                    {/* Круглый маркер */}
                                                     <Box
                                                         w={6}
                                                         h={6}
                                                         bg="#faad14"
                                                         style={{ borderRadius: "50%" }}
                                                     />
-                                                    {/* Текст */}
-                                                    <Text
-                                                        fw={400}
-                                                        fz={14}
-
-                                                        c="#faad14"
-                                                    >
+                                                    <Text fw={400} fz={14} c="#faad14">
                                                         Требует доработок
                                                     </Text>
-                                                </Flex></Paper>
+                                                </Flex>
+                                            </Paper>
                                         )}
                                     </Box>
                                 </Paper>
                             ))}
                         </Box>
-                    </Box>
+
+                        {totalPages > 1 && (
+                            <Flex mt={10} justify="flex-start" align="center" gap={8}>
+                                <ActionIcon
+                                    onClick={() => currentPage > 1 && handlePageChange(currentPage - 1)}
+                                    aria-label="Предыдущая страница"
+                                    style={{
+                                        border: "1px solid #d9d9d9",
+                                        borderRadius: 8,
+                                        width: 32,
+                                        height: 32,
+                                        background: "#fff",
+                                        flexShrink: 0,
+                                        opacity: currentPage === 1 ? 0.45 : 1,
+                                        cursor: currentPage === 1 ? "default" : "pointer",
+                                    }}
+                                >
+                                    <IconChevronLeft size={16} color="#000" />
+                                </ActionIcon>
+
+                                {visiblePages.map((page) => (
+                                    <Button
+                                        key={page}
+                                        onClick={() => handlePageChange(page)}
+                                        style={{
+                                            border: currentPage === page ? "1px solid #1890ff" : "1px solid #d9d9d9",
+                                            borderRadius: 8,
+                                            width: 32,
+                                            height: 32,
+                                            padding: 0,
+                                            background: "#fff",
+                                            fontWeight: 500,
+                                            fontSize: 14,
+                                            lineHeight: "157%",
+                                            textAlign: "center",
+                                            color: currentPage === page ? "#1890ff" : "#000",
+                                        }}
+                                    >
+                                        {page}
+                                    </Button>
+                                ))}
+
+                                <ActionIcon
+                                    onClick={() => currentPage < totalPages && handlePageChange(currentPage + 1)}
+                                    aria-label="Следующая страница"
+                                    style={{
+                                        border: "1px solid #d9d9d9",
+                                        borderRadius: 8,
+                                        width: 32,
+                                        height: 32,
+                                        background: "#fff",
+                                        flexShrink: 0,
+                                        opacity: currentPage === totalPages ? 0.45 : 1,
+                                        cursor: currentPage === totalPages ? "default" : "pointer",
+                                    }}
+                                >
+                                    <IconChevronRight size={16} color="#000" />
+                                </ActionIcon>
+                            </Flex>
+                        )}
+                    </Flex>
                 </Flex>
             </main>
         </Box>
