@@ -44,8 +44,7 @@ const AdsListPage = () => {
     const [searchTerm, setSearchTerm] = useState("");
 
     const categories = ["Авто", "Электроника", "Недвижимость"];
-    const adsPerPage = 10;
-
+    const adsPerPage = view === "list" ? 4 : 10;
     const ads: AdItem[] = [
         { category: "Электроника", title: "Наушники", price: "2990 ₽" },
         { category: "Авто", title: "Volkswagen Polo", price: "1100000 ₽", needsFix: true },
@@ -62,8 +61,7 @@ const AdsListPage = () => {
 
     const parsePrice = (price: string) => Number(price.replace(/[^\d]/g, "")) || 0;
 
-    const normalize = (value: string) =>
-        value.toLowerCase().replace(/\s+/g, " ").trim();
+    const normalize = (value: string) => value.toLowerCase().replace(/\s+/g, " ").trim();
 
     const toggleCategory = (cat: string) => {
         setSelectedCategories((prev) =>
@@ -90,9 +88,7 @@ const AdsListPage = () => {
 
             const fixOk = !onlyNeedsFix || ad.needsFix;
 
-            const searchOk =
-                query.length === 0 ||
-                normalize(ad.title).includes(query); // <-- только title
+            const searchOk = query.length === 0 || normalize(ad.title).includes(query);
 
             return categoryOk && fixOk && searchOk;
         });
@@ -139,22 +135,10 @@ const AdsListPage = () => {
         }
 
         if (currentPage >= totalPages - 2) {
-            return [
-                totalPages - 4,
-                totalPages - 3,
-                totalPages - 2,
-                totalPages - 1,
-                totalPages,
-            ];
+            return [totalPages - 4, totalPages - 3, totalPages - 2, totalPages - 1, totalPages];
         }
 
-        return [
-            currentPage - 2,
-            currentPage - 1,
-            currentPage,
-            currentPage + 1,
-            currentPage + 2,
-        ];
+        return [currentPage - 2, currentPage - 1, currentPage, currentPage + 1, currentPage + 2];
     };
 
     const visiblePages = getVisiblePages();
@@ -203,10 +187,17 @@ const AdsListPage = () => {
                                 <ActionIcon
                                     pl={4}
                                     bg="#f7f5f8"
-                                    variant={view === "grid" ? "filled" : "subtle"}
+                                    variant="subtle"
                                     onClick={() => setView("grid")}
+                                    aria-pressed={view === "grid"}
+                                    style={{
+                                        borderRadius: 8,
+                                    }}
                                 >
-                                    <IconLayoutGrid size={22} color="#1890ff" />
+                                    <IconLayoutGrid
+                                        size={22}
+                                        color={view === "grid" ? "#1890ff" : "#848388"}
+                                    />
                                 </ActionIcon>
 
                                 <Divider color="#fff" h={28} orientation="vertical" />
@@ -214,10 +205,17 @@ const AdsListPage = () => {
                                 <ActionIcon
                                     pr={4}
                                     bg="#f7f5f8"
-                                    variant={view === "list" ? "filled" : "subtle"}
+                                    variant="subtle"
                                     onClick={() => setView("list")}
+                                    aria-pressed={view === "list"}
+                                    style={{
+                                        borderRadius: 8,
+                                    }}
                                 >
-                                    <IconList size={22} color="#000000" />
+                                    <IconList
+                                        size={22}
+                                        color={view === "list" ? "#1890ff" : "#848388"}
+                                    />
                                 </ActionIcon>
                             </Flex>
                         </Paper>
@@ -397,102 +395,184 @@ const AdsListPage = () => {
                     </Flex>
 
                     <Flex direction="column" flex={1}>
-                        <Box
-                            style={{
-                                marginRight: "2px",
-                                display: "grid",
-                                gridTemplateColumns: "repeat(5, 200px)",
-                                columnGap: "13.75px",
-                                rowGap: "12px",
-                                justifyContent: "start",
-                            }}
-                        >
-                            {displayedAds.map((ad, index) => (
-                                <Paper
-                                    key={index}
-                                    radius={16}
-                                    w={200}
-                                    h={268}
-                                    p={0}
-                                    bg="#fff"
-                                    style={{
-                                        overflow: "hidden",
-                                        position: "relative",
-                                    }}
-                                >
-                                    <Box
-                                        h={150}
+                        {view === "grid" ? (
+                            <Box
+                                style={{
+                                    marginRight: "2px",
+                                    display: "grid",
+                                    gridTemplateColumns: "repeat(5, 200px)",
+                                    columnGap: "13.75px",
+                                    rowGap: "12px",
+                                    justifyContent: "start",
+                                }}
+                            >
+                                {displayedAds.map((ad, index) => (
+                                    <Paper
+                                        key={index}
+                                        radius={16}
                                         w={200}
+                                        h={268}
+                                        p={0}
+                                        bg="#fff"
                                         style={{
                                             overflow: "hidden",
-                                            display: "flex",
-                                            alignItems: "center",
-                                            justifyContent: "center",
-                                            backgroundColor: "#e9e9e9",
+                                            position: "relative",
                                         }}
                                     >
-                                        <IconPhoto size={32} color="#9b9b9b" />
-                                    </Box>
-
-                                    <Box
-                                        h={22}
-                                        style={{
-                                            position: "absolute",
-                                            top: 140,
-                                            left: 12,
-                                            border: "1px solid #d9d9d9",
-                                            borderRadius: 6,
-                                            display: "flex",
-                                            alignItems: "center",
-                                            justifyContent: "flex-start",
-                                            paddingLeft: 12,
-                                            paddingRight: 12,
-                                            backgroundColor: "#fff",
-                                            zIndex: 2,
-                                            letterSpacing: 0.3,
-                                        }}
-                                    >
-                                        <Text fz={14} c="#000">
-                                            {ad.category}
-                                        </Text>
-                                    </Box>
-
-                                    <Box p={16} pr={28} pt={21}>
-                                        <Text
-                                            w={168}
-                                            h={24}
-                                            mb={5}
-                                            fz={16}
-                                            fw={400}
-                                            lh="24px"
-                                            c="#000"
+                                        <Box
+                                            h={150}
+                                            w={200}
+                                            style={{
+                                                overflow: "hidden",
+                                                display: "flex",
+                                                alignItems: "center",
+                                                justifyContent: "center",
+                                                backgroundColor: "#e9e9e9",
+                                            }}
                                         >
-                                            {ad.title}
-                                        </Text>
+                                            <IconPhoto size={32} color="#9b9b9b" />
+                                        </Box>
 
-                                        <Text fz={16} fw={600} lh={1.4} c="rgba(0, 0, 0, 0.45)">
-                                            {ad.price}
-                                        </Text>
+                                        <Box
+                                            h={22}
+                                            style={{
+                                                position: "absolute",
+                                                top: 140,
+                                                left: 12,
+                                                border: "1px solid #d9d9d9",
+                                                borderRadius: 6,
+                                                display: "flex",
+                                                alignItems: "center",
+                                                justifyContent: "flex-start",
+                                                paddingLeft: 12,
+                                                paddingRight: 12,
+                                                backgroundColor: "#fff",
+                                                zIndex: 2,
+                                                letterSpacing: 0.3,
+                                            }}
+                                        >
+                                            <Text fz={14} c="#000">
+                                                {ad.category}
+                                            </Text>
+                                        </Box>
 
-                                        {ad.needsFix && (
-                                            <Paper radius={8} bg="#f9f1e6" pl={9} p={2} mt={4}>
-                                                <Flex align="center" gap={6}>
-                                                    <Box
-                                                        w={6}
-                                                        h={6}
-                                                        bg="#faad14"
-                                                        style={{ borderRadius: "50%" }}
-                                                    />
-                                                    <Text fw={400} fz={14} c="#faad14">
-                                                        Требует доработок
+                                        <Box p={16} pr={28} pt={21}>
+                                            <Text
+                                                w={168}
+                                                h={24}
+                                                mb={5}
+                                                fz={16}
+                                                fw={400}
+                                                lh="24px"
+                                                c="#000"
+                                            >
+                                                {ad.title}
+                                            </Text>
+
+                                            <Text fz={16} fw={600} lh={1.4} c="rgba(0, 0, 0, 0.45)">
+                                                {ad.price}
+                                            </Text>
+
+                                            {ad.needsFix && (
+                                                <Paper radius={8} bg="#f9f1e6" pl={9} p={2} mt={4}>
+                                                    <Flex align="center" gap={6}>
+                                                        <Box
+                                                            w={6}
+                                                            h={6}
+                                                            bg="#faad14"
+                                                            style={{ borderRadius: "50%" }}
+                                                        />
+                                                        <Text fw={400} fz={14} c="#faad14">
+                                                            Требует доработок
+                                                        </Text>
+                                                    </Flex>
+                                                </Paper>
+                                            )}
+                                        </Box>
+                                    </Paper>
+                                ))}
+                            </Box>
+                        ) : (
+                            <Box
+                                style={{
+                                    display: "grid",
+                                    gridTemplateColumns: "1fr",
+                                    gap: "12px",
+                                    width: "100%",
+                                }}
+                            >
+                                {displayedAds.map((ad, index) => (
+                                    <Paper
+                                        key={index}
+                                        radius={16}
+                                        w="100%"
+                                        h={132}
+                                        p={0}
+                                        bg="#fff"
+                                        style={{
+                                            border: "1px solid #f0f0f0",
+                                            boxSizing: "border-box",
+                                            overflow: "hidden",
+                                        }}
+                                    >
+                                        <Flex h="100%">
+                                            <Box
+                                                w={180}
+                                                h="100%"
+                                                style={{
+                                                    display: "flex",
+                                                    alignItems: "center",
+                                                    justifyContent: "center",
+                                                    backgroundColor: "#e9e9e9",
+                                                    flexShrink: 0,
+                                                }}
+                                            >
+                                                <IconPhoto size={36} color="#9b9b9b" />
+                                            </Box>
+
+                                            <Box
+                                                style={{
+                                                    flex: 1,
+                                                    height: "100%",
+                                                    padding: "16px 16px 16px 24px",
+                                                    display: "flex",
+                                                    flexDirection: "column",
+                                                    justifyContent: "space-between",
+                                                }}
+                                            >
+                                                <Box>
+                                                    <Text fz={14} fw={400} c="#848388" mb={6}>
+                                                        {ad.category}
                                                     </Text>
-                                                </Flex>
-                                            </Paper>
-                                        )}
-                                    </Box>
-                                </Paper>
-                            ))}
-                        </Box>
+
+                                                    <Text fz={15} fw={400} c="#000" mb={6}>
+                                                        {ad.title}
+                                                    </Text>
+
+                                                    <Text fz={15} fw={600} c="rgba(0, 0, 0, 0.75)">
+                                                        {ad.price}
+                                                    </Text>
+                                                </Box>
+
+                                                {ad.needsFix && (
+                                                    <Flex align="center" gap={6}>
+                                                        <Box
+                                                            w={6}
+                                                            h={6}
+                                                            bg="#faad14"
+                                                            style={{ borderRadius: "50%" }}
+                                                        />
+                                                        <Text fw={400} fz={13} c="#faad14">
+                                                            Требует доработок
+                                                        </Text>
+                                                    </Flex>
+                                                )}
+                                            </Box>
+                                        </Flex>
+                                    </Paper>
+                                ))}
+                            </Box>
+                        )}
 
                         {totalPages > 1 && (
                             <Flex mt={10} justify="flex-start" align="center" gap={8}>
@@ -519,7 +599,9 @@ const AdsListPage = () => {
                                         onClick={() => handlePageChange(page)}
                                         style={{
                                             border:
-                                                currentPage === page ? "1px solid #1890ff" : "1px solid #d9d9d9",
+                                                currentPage === page
+                                                    ? "1px solid #1890ff"
+                                                    : "1px solid #d9d9d9",
                                             borderRadius: 8,
                                             width: 32,
                                             height: 32,
