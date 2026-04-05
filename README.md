@@ -52,7 +52,11 @@ npm start
 ### 3. AI (Ollama)
 
 ```bash
-cd avito-ai
+Локальный запуск через Ollama (бесплатно, без интернета)
+Установите Ollama
+Загрузите модель:
+ollama pull llama3
+Убедитесь, что Ollama запущена:
 ollama serve
 ```
 
