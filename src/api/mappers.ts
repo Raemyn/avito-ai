@@ -1,7 +1,7 @@
 import type { ApiAd } from "./items";
-import type { Ad } from "../data/ads"; // путь поправь под себя
 
-export const mapCategory = (category: ApiAd["category"]): Ad["category"] => {
+
+export const mapCategory = (category: ApiAd["category"]) => {
     switch (category) {
         case "electronics":
             return "Электроника";
@@ -12,7 +12,7 @@ export const mapCategory = (category: ApiAd["category"]): Ad["category"] => {
     }
 };
 
-export const mapApiToAd = (item: ApiAd): Ad => {
+export const mapApiToAd = (item: ApiAd) => {
     return {
         id: item.id,
         category: mapCategory(item.category),

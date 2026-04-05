@@ -16,9 +16,7 @@ import {
 } from "@mantine/core";
 import { IconBulb, IconRefresh, IconCheck } from "@tabler/icons-react";
 import { getItemById, updateItem } from "../../api/items";
-import { getMissingFields, type Ad } from "../../data/ads";
 
-type Category = Ad["category"];
 type ApiCategory = "auto" | "real_estate" | "electronics";
 
 type ApiItemDetail = {
@@ -29,7 +27,7 @@ type ApiItemDetail = {
     price: number;
     createdAt: string;
     updatedAt: string;
-    needsRevision: boolean;
+    needsRevision?: boolean;
     params?: {
         type?: string | null;
         brand?: string | null;
@@ -46,19 +44,26 @@ type ApiItemDetail = {
     };
 };
 
+type UiCategory = "Электроника" | "Авто" | "Недвижимость";
+
 type EditFormState = {
-    category: Category;
+    category: UiCategory;
     title: string;
     price: string;
     description: string;
-    params: NonNullable<Ad["params"]> & {
-        yearOfManufacture?: string;
-        transmission?: string;
-        mileage?: string;
-        enginePower?: string;
-        address?: string;
-        area?: string;
-        floor?: string;
+    params: {
+        type: string;
+        brand: string;
+        model: string;
+        color: string;
+        condition: string;
+        yearOfManufacture: string;
+        transmission: string;
+        mileage: string;
+        enginePower: string;
+        address: string;
+        area: string;
+        floor: string;
     };
 };
 
@@ -109,7 +114,7 @@ type UpdatePayload =
           params: ApiElectronicsParams;
       };
 
-const emptyParams = {
+const emptyParams: EditFormState["params"] = {
     type: "",
     brand: "",
     model: "",
@@ -124,25 +129,7 @@ const emptyParams = {
     floor: "",
 };
 
-const getCategoryParams = (ad?: ApiItemDetail | null): EditFormState["params"] => ({
-    ...emptyParams,
-    ...(ad?.params ?? {}),
-    type: ad?.params?.type ?? "",
-    brand: ad?.params?.brand ?? "",
-    model: ad?.params?.model ?? "",
-    color: ad?.params?.color ?? "",
-    condition: ad?.params?.condition ?? "",
-    yearOfManufacture:
-        ad?.params?.yearOfManufacture != null ? String(ad.params.yearOfManufacture) : "",
-    transmission: ad?.params?.transmission ?? "",
-    mileage: ad?.params?.mileage != null ? String(ad.params.mileage) : "",
-    enginePower: ad?.params?.enginePower != null ? String(ad.params.enginePower) : "",
-    address: ad?.params?.address ?? "",
-    area: ad?.params?.area != null ? String(ad.params.area) : "",
-    floor: ad?.params?.floor != null ? String(ad.params.floor) : "",
-});
-
-const mapCategoryToUi = (category: ApiCategory): Category => {
+const mapCategoryToUi = (category: ApiCategory): UiCategory => {
     switch (category) {
         case "auto":
             return "Авто";
@@ -153,12 +140,31 @@ const mapCategoryToUi = (category: ApiCategory): Category => {
     }
 };
 
+const formatParamValue = (value: unknown) => {
+    if (value === null || value === undefined || value === "") return "";
+    return String(value);
+};
+
 const getInitialState = (ad: ApiItemDetail): EditFormState => ({
     category: mapCategoryToUi(ad.category),
     title: ad.title,
     price: String(ad.price),
     description: ad.description ?? "",
-    params: getCategoryParams(ad),
+    params: {
+        ...emptyParams,
+        type: formatParamValue(ad.params?.type),
+        brand: formatParamValue(ad.params?.brand),
+        model: formatParamValue(ad.params?.model),
+        color: formatParamValue(ad.params?.color),
+        condition: formatParamValue(ad.params?.condition),
+        yearOfManufacture: formatParamValue(ad.params?.yearOfManufacture),
+        transmission: formatParamValue(ad.params?.transmission),
+        mileage: formatParamValue(ad.params?.mileage),
+        enginePower: formatParamValue(ad.params?.enginePower),
+        address: formatParamValue(ad.params?.address),
+        area: formatParamValue(ad.params?.area),
+        floor: formatParamValue(ad.params?.floor),
+    },
 });
 
 const getRequiredInputStyles = (hasError: boolean): { input: CSSProperties } => ({
@@ -191,13 +197,48 @@ const toOptionalNumber = (value?: string) => {
     return Number.isFinite(parsed) ? parsed : undefined;
 };
 
+const getMissingFields = (item: ApiItemDetail): string[] => {
+    const missing: string[] = [];
+    const params = item.params ?? {};
+
+    if (!item.title?.trim()) missing.push("Название");
+
+    if (!item.price || item.price <= 0) {
+        missing.push("Цена");
+    }
+
+    if (!item.description?.trim()) {
+        missing.push("Описание");
+    }
+
+    if (item.category === "electronics") {
+        if (!formatParamValue(params.brand)) missing.push("Бренд");
+        if (!formatParamValue(params.model)) missing.push("Модель");
+        if (!formatParamValue(params.type)) missing.push("Тип");
+        if (!formatParamValue(params.condition)) missing.push("Состояние");
+    }
+
+    if (item.category === "auto") {
+        if (!formatParamValue(params.brand)) missing.push("Бренд");
+        if (!formatParamValue(params.model)) missing.push("Модель");
+        if (!formatParamValue(params.yearOfManufacture)) missing.push("Год выпуска");
+    }
+
+    if (item.category === "real_estate") {
+        if (!formatParamValue(params.address)) missing.push("Адрес");
+        if (!formatParamValue(params.area)) missing.push("Площадь");
+        if (!formatParamValue(params.type)) missing.push("Тип");
+    }
+
+    return missing;
+};
+
 const AdEditPage = () => {
     const { id } = useParams();
     const navigate = useNavigate();
     const queryClient = useQueryClient();
 
     const itemId = Number(id);
-    const draftKey = Number(id || 0);
 
     const { data, isLoading, isError, error, refetch } = useQuery({
         queryKey: ["item", itemId],
@@ -215,34 +256,8 @@ const AdEditPage = () => {
 
     useEffect(() => {
         if (!item) return;
-
-        const draft = localStorage.getItem(`ad-edit-draft-v1-${draftKey}`);
-        if (draft) {
-            try {
-                const parsed = JSON.parse(draft) as Partial<EditFormState>;
-                setForm({
-                    category: (parsed.category ?? mapCategoryToUi(item.category)) as Category,
-                    title: parsed.title ?? item.title,
-                    price: parsed.price ?? String(item.price),
-                    description: parsed.description ?? item.description ?? "",
-                    params: {
-                        ...getCategoryParams(item),
-                        ...(parsed.params ?? {}),
-                    },
-                });
-                return;
-            } catch {
-                // fallback ниже
-            }
-        }
-
         setForm(getInitialState(item));
-    }, [item, draftKey]);
-
-    useEffect(() => {
-        if (!form || !id) return;
-        localStorage.setItem(`ad-edit-draft-v1-${draftKey}`, JSON.stringify(form));
-    }, [form, id, draftKey]);
+    }, [item]);
 
     const updateMutation = useMutation({
         mutationFn: async (payload: UpdatePayload) => {
@@ -252,7 +267,6 @@ const AdEditPage = () => {
             await queryClient.invalidateQueries({ queryKey: ["item", itemId] });
             await queryClient.invalidateQueries({ queryKey: ["ads"] });
 
-            localStorage.removeItem(`ad-edit-draft-v1-${draftKey}`);
             setSaved(true);
 
             setTimeout(() => {
@@ -428,28 +442,10 @@ const AdEditPage = () => {
     };
 
     const handleCancel = () => {
-        localStorage.removeItem(`ad-edit-draft-v1-${draftKey}`);
         navigate(`/ads/${itemId}`);
     };
 
-    const uiAd: Ad = {
-        id: item.id,
-        category: mapCategoryToUi(item.category),
-        title: item.title,
-        price: `${item.price} ₽`,
-        createdAt: item.createdAt,
-        updatedAt: item.updatedAt,
-        needsFix: item.needsRevision,
-        description: item.description ?? "",
-        params: item.params
-            ? (Object.fromEntries(
-                  Object.entries(item.params).map(([key, value]) => [
-                      key,
-                      value == null ? "" : String(value),
-                  ])
-              ) as NonNullable<Ad["params"]>)
-            : undefined,
-    };
+    const missingCount = getMissingFields(item).length;
 
     return (
         <Box bg="#f7f5f8" mih="100vh" p={24}>
@@ -509,7 +505,7 @@ const AdEditPage = () => {
                         data={["Электроника", "Авто", "Недвижимость"]}
                         value={form.category}
                         onChange={(value) =>
-                            updateField("category", (value as Category) ?? "Электроника")
+                            updateField("category", (value as UiCategory) ?? "Электроника")
                         }
                         radius={8}
                         w={327}
@@ -606,10 +602,15 @@ const AdEditPage = () => {
                     <Box w={456}>
                         {form.category === "Электроника" && (
                             <>
-                                <TextInput
+                                <Select
                                     label="Тип"
-                                    value={form.params.type}
-                                    onChange={(e) => updateParam("type", e.currentTarget.value)}
+                                    data={[
+                                        { value: "phone", label: "Телефон" },
+                                        { value: "laptop", label: "Ноутбук" },
+                                        { value: "misc", label: "Другое" },
+                                    ]}
+                                    value={form.params.type || null}
+                                    onChange={(value) => updateParam("type", value ?? "")}
                                     styles={getOptionalInputStyles(form.params.type)}
                                 />
                                 <TextInput
@@ -633,10 +634,14 @@ const AdEditPage = () => {
                                     styles={getOptionalInputStyles(form.params.color)}
                                     mt={12}
                                 />
-                                <TextInput
+                                <Select
                                     label="Состояние"
-                                    value={form.params.condition}
-                                    onChange={(e) => updateParam("condition", e.currentTarget.value)}
+                                    data={[
+                                        { value: "new", label: "Новое" },
+                                        { value: "used", label: "Б/у" },
+                                    ]}
+                                    value={form.params.condition || null}
+                                    onChange={(value) => updateParam("condition", value ?? "")}
                                     styles={getOptionalInputStyles(form.params.condition)}
                                     mt={12}
                                 />
@@ -660,30 +665,39 @@ const AdEditPage = () => {
                                 />
                                 <TextInput
                                     label="Год выпуска"
-                                    value={form.params.yearOfManufacture ?? ""}
+                                    value={form.params.yearOfManufacture}
                                     onChange={(e) =>
                                         updateParam("yearOfManufacture", e.currentTarget.value)
                                     }
                                     styles={getOptionalInputStyles(form.params.yearOfManufacture)}
                                     mt={12}
                                 />
-                                <TextInput
+                                <Select
                                     label="Коробка передач"
-                                    value={form.params.transmission ?? ""}
-                                    onChange={(e) => updateParam("transmission", e.currentTarget.value)}
+                                    data={[
+                                        { value: "automatic", label: "Автомат" },
+                                        { value: "manual", label: "Механика" },
+                                    ]}
+                                    value={
+                                        form.params.transmission === "automatic" ||
+                                        form.params.transmission === "manual"
+                                            ? form.params.transmission
+                                            : null
+                                    }
+                                    onChange={(value) => updateParam("transmission", value ?? "")}
                                     styles={getOptionalInputStyles(form.params.transmission)}
                                     mt={12}
                                 />
                                 <TextInput
                                     label="Пробег"
-                                    value={form.params.mileage ?? ""}
+                                    value={form.params.mileage}
                                     onChange={(e) => updateParam("mileage", e.currentTarget.value)}
                                     styles={getOptionalInputStyles(form.params.mileage)}
                                     mt={12}
                                 />
                                 <TextInput
                                     label="Мощность двигателя"
-                                    value={form.params.enginePower ?? ""}
+                                    value={form.params.enginePower}
                                     onChange={(e) => updateParam("enginePower", e.currentTarget.value)}
                                     styles={getOptionalInputStyles(form.params.enginePower)}
                                     mt={12}
@@ -693,29 +707,34 @@ const AdEditPage = () => {
 
                         {form.category === "Недвижимость" && (
                             <>
-                                <TextInput
+                                <Select
                                     label="Тип"
-                                    value={form.params.type}
-                                    onChange={(e) => updateParam("type", e.currentTarget.value)}
+                                    data={[
+                                        { value: "flat", label: "Квартира" },
+                                        { value: "house", label: "Дом" },
+                                        { value: "room", label: "Комната" },
+                                    ]}
+                                    value={form.params.type || null}
+                                    onChange={(value) => updateParam("type", value ?? "")}
                                     styles={getOptionalInputStyles(form.params.type)}
                                 />
                                 <TextInput
                                     label="Адрес"
-                                    value={form.params.address ?? ""}
+                                    value={form.params.address}
                                     onChange={(e) => updateParam("address", e.currentTarget.value)}
                                     styles={getOptionalInputStyles(form.params.address)}
                                     mt={12}
                                 />
                                 <TextInput
                                     label="Площадь"
-                                    value={form.params.area ?? ""}
+                                    value={form.params.area}
                                     onChange={(e) => updateParam("area", e.currentTarget.value)}
                                     styles={getOptionalInputStyles(form.params.area)}
                                     mt={12}
                                 />
                                 <TextInput
                                     label="Этаж"
-                                    value={form.params.floor ?? ""}
+                                    value={form.params.floor}
                                     onChange={(e) => updateParam("floor", e.currentTarget.value)}
                                     styles={getOptionalInputStyles(form.params.floor)}
                                     mt={12}
@@ -764,6 +783,7 @@ const AdEditPage = () => {
 
                     <Flex gap={12} mt={8}>
                         <Button
+                            type="button"
                             onClick={handleSave}
                             disabled={!isValid || updateMutation.isPending}
                             style={{
@@ -775,6 +795,7 @@ const AdEditPage = () => {
                         </Button>
 
                         <Button
+                            type="button"
                             onClick={handleCancel}
                             radius={8}
                             variant="filled"
@@ -787,7 +808,7 @@ const AdEditPage = () => {
 
                     <Box mt={8}>
                         <Text fz={12} c="#8b8b8b">
-                            Требуются доработки: {getMissingFields(uiAd).length}
+                            Требуются доработки: {missingCount}
                         </Text>
                     </Box>
                 </Flex>
