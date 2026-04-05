@@ -107,7 +107,7 @@ const AdsListPage = () => {
     const [categoriesOpen, setCategoriesOpen] = useState(false);
     const [debouncedSearch] = useDebouncedValue(searchTerm, 350);
 
-    const pageSize = adsPerPage;
+    const pageSize = view === "grid" ? 10 : 4;
 
     const apiCategories = useMemo(
         () => selectedCategories.map((c) => mapCategoryToApi(c)),
