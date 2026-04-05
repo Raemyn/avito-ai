@@ -1,20 +1,24 @@
 import { useEffect, useMemo, useState } from "react";
 import type { CSSProperties } from "react";
+import axios from "axios";
 import { useNavigate, useParams } from "react-router-dom";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { suggestDescription, suggestMarketPrice } from "../../api/ollama";
 import {
+    Alert,
     Box,
     Button,
     Divider,
     Flex,
     Paper,
+    Popover,
     Select,
     Text,
     TextInput,
     Textarea,
     Title,
 } from "@mantine/core";
-import { IconBulb, IconRefresh, IconCheck } from "@tabler/icons-react";
+import { IconAlertTriangle, IconBulb, IconRefresh, IconCheck } from "@tabler/icons-react";
 import { getItemById, updateItem } from "../../api/items";
 
 type ApiCategory = "auto" | "real_estate" | "electronics";
@@ -93,26 +97,89 @@ type ApiElectronicsParams = {
 
 type UpdatePayload =
     | {
-          category: "auto";
-          title: string;
-          description?: string;
-          price: number;
-          params: ApiAutoParams;
-      }
+        category: "auto";
+        title: string;
+        description: string;
+        price: number;
+        params: ApiAutoParams;
+    }
     | {
-          category: "real_estate";
-          title: string;
-          description?: string;
-          price: number;
-          params: ApiRealEstateParams;
-      }
+        category: "real_estate";
+        title: string;
+        description: string;
+        price: number;
+        params: ApiRealEstateParams;
+    }
     | {
-          category: "electronics";
-          title: string;
-          description?: string;
-          price: number;
-          params: ApiElectronicsParams;
-      };
+        category: "electronics";
+        title: string;
+        description: string;
+        price: number;
+        params: ApiElectronicsParams;
+    };
+
+type AiState<T> = {
+    opened: boolean;
+    loading: boolean;
+    error: string | null;
+    result: T | null;
+};
+
+type AiErrorBoxProps = {
+    title?: string;
+    message: string;
+    onClose: () => void;
+    onRetry?: () => void;
+};
+
+const AiErrorBox = ({ title = "Произошла ошибка при запросе к AI", message, onClose, onRetry }: AiErrorBoxProps) => {
+    return (
+        <Alert p={0} variant="light" color="red" title={title} bg="#fee9e7" radius="md" icon={<IconAlertTriangle size={16} />}>
+            <Text fz={12} lh="133%" c="#1e1e1e" style={{ whiteSpace: "pre-wrap" }}>
+                {message}
+            </Text>
+
+            <Flex gap={8} mt={16}>
+                {onRetry && (
+                    <Button
+                        variant="outline"
+                        fz={14}
+                        bd="1px solid #d9d9d9"
+                        pl={8}
+                        pr={8}
+                        w={90}
+                        h={24}
+                        color="rgba(0, 0, 0, 0.85)"
+                        bg="#fff"
+                        onClick={onRetry}
+                    >
+                        Повторить
+                    </Button>
+                )}
+
+                <Button
+                    variant="outline"
+                    fz={14}
+                    bd="1px solid #d9d9d9"
+                    pl={8}
+                    pr={8}
+                    w={73}
+                    h={24}
+                    color="rgba(0, 0, 0, 0.85)"
+                    bg="#fcb3ad"
+                    onClick={onClose}
+                >
+                    Закрыть
+                </Button>
+            </Flex>
+        </Alert>
+    );
+};
+
+type PriceAiResult = {
+    price: number;
+    reasons: string[];
+};
 
 const emptyParams: EditFormState["params"] = {
     type: "",
@@ -197,6 +264,9 @@ const toOptionalNumber = (value?: string) => {
     return Number.isFinite(parsed) ? parsed : undefined;
 };
 
+const formatRubles = (value: number) =>
+    `${new Intl.NumberFormat("ru-RU").format(Math.round(value))} ₽`;
+
 const getMissingFields = (item: ApiItemDetail): string[] => {
     const missing: string[] = [];
     const params = item.params ?? {};
@@ -233,6 +303,137 @@ const getMissingFields = (item: ApiItemDetail): string[] => {
     return missing;
 };
 
+const getAiErrorText = (err: unknown) => {
+    const fallback = "Попробуйте повторить запрос или закройте уведомление";
+
+    if (typeof err === "string" && err.trim()) return err;
+
+    if (axios.isAxiosError(err)) {
+        const data = err.response?.data as
+            | string
+            | { message?: unknown; error?: unknown; detail?: unknown }
+            | undefined;
+
+        if (typeof data === "string" && data.trim()) return data;
+
+        if (data && typeof data === "object") {
+            const text = data.message ?? data.error ?? data.detail;
+            if (typeof text === "string" && text.trim()) return text;
+        }
+
+        if (err.response?.status) {
+            return `AI вернул ошибку сервера: ${err.response.status}`;
+        }
+
+        return fallback;
+    }
+
+    if (err instanceof Error) {
+        const msg = err.message?.trim();
+        if (!msg) return fallback;
+
+        if (msg === "Failed to fetch" || msg === "Network Error") {
+            return fallback;
+        }
+
+        return msg;
+    }
+
+    return fallback;
+};
+
+const getSaveErrorText = (err: unknown) => {
+    if (axios.isAxiosError(err)) {
+        const data = err.response?.data as
+            | string
+            | { message?: unknown; error?: unknown; detail?: unknown }
+            | undefined;
+
+        if (typeof data === "string" && data.trim()) return data;
+
+        if (data && typeof data === "object") {
+            const text = data.message ?? data.error ?? data.detail;
+            if (typeof text === "string" && text.trim()) return text;
+        }
+
+        if (err.response?.status === 400) {
+            return "Сервер отклонил данные формы (400). Проверьте title, price и params.";
+        }
+
+        if (err.response?.status) {
+            return `Ошибка сервера: ${err.response.status}`;
+        }
+
+        return err.message || "Не удалось сохранить изменения";
+    }
+
+    if (err instanceof Error) return err.message;
+    return "Не удалось сохранить изменения";
+};
+
+const cleanObject = <T extends Record<string, unknown>>(obj: T) =>
+    Object.fromEntries(Object.entries(obj).filter(([, value]) => value !== undefined && value !== null));
+
+const buildUpdatePayload = (form: EditFormState): UpdatePayload => {
+    const title = form.title.trim();
+    const description = form.description.trim();
+
+    if (form.category === "Авто") {
+        return {
+            category: "auto",
+            title,
+            description,
+            price: Number(form.price.replace(/[^\d]/g, "")) || 0,
+            params: cleanObject({
+                brand: form.params.brand.trim() || undefined,
+                model: form.params.model.trim() || undefined,
+                yearOfManufacture: toOptionalNumber(form.params.yearOfManufacture),
+                transmission:
+                    form.params.transmission === "manual" || form.params.transmission === "automatic"
+                        ? form.params.transmission
+                        : undefined,
+                mileage: toOptionalNumber(form.params.mileage),
+                enginePower: form.params.enginePower ? Math.round(Number(form.params.enginePower)) : undefined,
+            }) as ApiAutoParams,
+        };
+    }
+
+    if (form.category === "Недвижимость") {
+        return {
+            category: "real_estate",
+            title,
+            description,
+            price: Number(form.price.replace(/[^\d]/g, "")) || 0,
+            params: cleanObject({
+                type:
+                    form.params.type === "flat" || form.params.type === "house" || form.params.type === "room"
+                        ? form.params.type
+                        : undefined,
+                address: form.params.address.trim() || undefined,
+                area: toOptionalNumber(form.params.area),
+                floor: toOptionalNumber(form.params.floor),
+            }) as ApiRealEstateParams,
+        };
+    }
+
+    return {
+        category: "electronics",
+        title,
+        description,
+        price: Number(form.price.replace(/[^\d]/g, "")) || 0,
+        params: cleanObject({
+            type:
+                form.params.type === "phone" || form.params.type === "laptop" || form.params.type === "misc"
+                    ? form.params.type
+                    : undefined,
+            brand: form.params.brand.trim() || undefined,
+            model: form.params.model.trim() || undefined,
+            condition: form.params.condition === "new" || form.params.condition === "used" ? form.params.condition : undefined,
+            color: form.params.color.trim() || undefined,
+        }) as ApiElectronicsParams,
+    };
+};
+
 const AdEditPage = () => {
     const { id } = useParams();
     const navigate = useNavigate();
@@ -253,6 +454,21 @@ const AdEditPage = () => {
     const [form, setForm] = useState<EditFormState | null>(null);
     const [saved, setSaved] = useState(false);
     const [errors, setErrors] = useState<{ title?: string; price?: string }>({});
+    const [saveError, setSaveError] = useState<string | null>(null);
+
+    const [priceAi, setPriceAi] = useState<AiState<PriceAiResult>>({
+        opened: false,
+        loading: false,
+        error: null,
+        result: null,
+    });
+
+    const [descriptionAi, setDescriptionAi] = useState<AiState<string>>({
+        opened: false,
+        loading: false,
+        error: null,
+        result: null,
+    });
 
     useEffect(() => {
         if (!item) return;
@@ -264,6 +480,7 @@ const AdEditPage = () => {
             return updateItem(itemId, payload);
         },
         onSuccess: async () => {
+            setSaveError(null);
             await queryClient.invalidateQueries({ queryKey: ["item", itemId] });
             await queryClient.invalidateQueries({ queryKey: ["ads"] });
 
@@ -273,6 +490,9 @@ const AdEditPage = () => {
                 setSaved(false);
                 navigate(`/ads/${itemId}`);
             }, 1500);
+        },
+        onError: (err) => {
+            setSaveError(getSaveErrorText(err));
         },
     });
 
@@ -320,12 +540,12 @@ const AdEditPage = () => {
         setForm((prev) =>
             prev
                 ? {
-                      ...prev,
-                      params: {
-                          ...prev.params,
-                          [key]: value,
-                      },
-                  }
+                    ...prev,
+                    params: {
+                        ...prev.params,
+                        [key]: value,
+                    },
+                }
                 : prev
         );
     };
@@ -340,103 +560,102 @@ const AdEditPage = () => {
         }
     };
 
-    const isValid = Boolean(form.title.trim() && form.price.trim());
+    const handleSuggestDescription = async () => {
+        try {
+            setDescriptionAi({
+                opened: true,
+                loading: true,
+                error: null,
+                result: null,
+            });
 
-    const handleSuggestDescription = () => {
-        setForm((prev) =>
-            prev
-                ? {
-                      ...prev,
-                      description:
-                          prev.category === "Электроника"
-                              ? `Продаю ${prev.title}. Отличный вариант для работы, учёбы и повседневных задач.`
-                              : `Продаю ${prev.title}. Хорошее состояние, аккуратное использование, готов к сделке.`,
-                  }
-                : prev
-        );
+            const result = await suggestDescription({
+                category: item.category,
+                title: form.title,
+                description: form.description,
+                price: Number(form.price) || 0,
+                params: form.params,
+            });
+
+            setDescriptionAi({
+                opened: true,
+                loading: false,
+                error: null,
+                result: result.description ?? "",
+            });
+        } catch (err) {
+            setDescriptionAi({
+                opened: true,
+                loading: false,
+                error: getAiErrorText(err),
+                result: null,
+            });
+        }
     };
 
-    const handleSuggestPrice = () => {
-        const current = Number(form.price.replace(/[^\d]/g, "")) || 0;
-        if (!current) return;
+    const handleApplyDescription = () => {
+        if (!descriptionAi.result) return;
+        updateField("description", descriptionAi.result);
+        setDescriptionAi((prev) => ({ ...prev, opened: false }));
+    };
 
-        const suggested =
-            form.category === "Электроника"
-                ? Math.round(current * 0.97)
-                : form.category === "Авто"
-                  ? Math.round(current * 1.02)
-                  : Math.round(current * 1.01);
+    const handleSuggestPrice = async () => {
+        try {
+            setPriceAi({
+                opened: true,
+                loading: true,
+                error: null,
+                result: null,
+            });
 
-        updateField("price", String(suggested));
+            const result = await suggestMarketPrice({
+                category: item.category,
+                title: form.title,
+                description: form.description,
+                price: Number(form.price) || 0,
+                params: form.params,
+            });
+
+            setPriceAi({
+                opened: true,
+                loading: false,
+                error: null,
+                result,
+            });
+        } catch (err) {
+            setPriceAi({
+                opened: true,
+                loading: false,
+                error: getAiErrorText(err),
+                result: null,
+            });
+        }
+    };
+
+    const handleApplyPrice = () => {
+        if (!priceAi.result) return;
+        updateField("price", String(Math.round(priceAi.result.price)));
+        setPriceAi((prev) => ({ ...prev, opened: false }));
     };
 
     const handleSave = () => {
-        validateField("title");
-        validateField("price");
+        setSaveError(null);
+        setErrors({});
 
-        if (!isValid) return;
+        if (!form.title.trim()) {
+            setErrors((prev) => ({ ...prev, title: "Название должно быть заполнено" }));
+            return;
+        }
 
-        const normalizedPrice = Number(form.price.replace(/[^\d]/g, "")) || 0;
+        if (!form.price.trim()) {
+            setErrors((prev) => ({ ...prev, price: "Цена должна быть заполнена" }));
+            return;
+        }
 
-        const payload: UpdatePayload =
-            form.category === "Авто"
-                ? {
-                      category: "auto",
-                      title: form.title.trim(),
-                      description: form.description.trim() || undefined,
-                      price: normalizedPrice,
-                      params: {
-                          brand: form.params.brand || undefined,
-                          model: form.params.model || undefined,
-                          yearOfManufacture: toOptionalNumber(form.params.yearOfManufacture),
-                          transmission:
-                              form.params.transmission === "manual" ||
-                              form.params.transmission === "automatic"
-                                  ? form.params.transmission
-                                  : undefined,
-                          mileage: toOptionalNumber(form.params.mileage),
-                          enginePower: toOptionalNumber(form.params.enginePower),
-                      },
-                  }
-                : form.category === "Недвижимость"
-                  ? {
-                        category: "real_estate",
-                        title: form.title.trim(),
-                        description: form.description.trim() || undefined,
-                        price: normalizedPrice,
-                        params: {
-                            type:
-                                form.params.type === "flat" ||
-                                form.params.type === "house" ||
-                                form.params.type === "room"
-                                    ? form.params.type
-                                    : undefined,
-                            address: form.params.address || undefined,
-                            area: toOptionalNumber(form.params.area),
-                            floor: toOptionalNumber(form.params.floor),
-                        },
-                    }
-                  : {
-                        category: "electronics",
-                        title: form.title.trim(),
-                        description: form.description.trim() || undefined,
-                        price: normalizedPrice,
-                        params: {
-                            type:
-                                form.params.type === "phone" ||
-                                form.params.type === "laptop" ||
-                                form.params.type === "misc"
-                                    ? form.params.type
-                                    : undefined,
-                            brand: form.params.brand || undefined,
-                            model: form.params.model || undefined,
-                            condition:
-                                form.params.condition === "new" || form.params.condition === "used"
-                                    ? form.params.condition
-                                    : undefined,
-                            color: form.params.color || undefined,
-                        },
-                    };
+        const payload = buildUpdatePayload(form);
+
+        setPriceAi((prev) => ({ ...prev, opened: false }));
+        setDescriptionAi((prev) => ({ ...prev, opened: false }));
 
         updateMutation.mutate(payload);
     };
@@ -522,6 +741,7 @@ const AdEditPage = () => {
                             value={form.title}
                             onChange={(e) => {
                                 updateField("title", e.currentTarget.value);
+                                setSaveError(null);
                                 if (errors.title) {
                                     setErrors((prev) => ({ ...prev, title: undefined }));
                                 }
@@ -556,6 +776,7 @@ const AdEditPage = () => {
                                 value={form.price}
                                 onChange={(e) => {
                                     updateField("price", e.currentTarget.value.replace(/[^\d]/g, ""));
+                                    setSaveError(null);
                                     if (errors.price) {
                                         setErrors((prev) => ({ ...prev, price: undefined }));
                                     }
@@ -578,19 +799,102 @@ const AdEditPage = () => {
                             )}
                         </Box>
 
-                        <Button
-                            leftSection={<IconRefresh size={14} />}
-                            radius={8}
-                            variant="light"
-                            color="orange"
-                            bg="#fff2e5"
-                            c="#ff9f1a"
-                            fw={400}
-                            h={32}
-                            onClick={handleSuggestPrice}
+                        <Popover
+                            opened={priceAi.opened}
+                            onChange={(opened) => setPriceAi((prev) => ({ ...prev, opened }))}
+                            position="bottom-start"
+                            withArrow
+                            shadow="md"
+                            width={332}
+                            closeOnClickOutside={false}
+                            closeOnEscape={false}
+                            withinPortal
                         >
-                            Узнать рыночную цену
-                        </Button>
+                            <Popover.Target>
+                                <Button
+                                    leftSection={<IconRefresh size={14} />}
+                                    radius={8}
+                                    variant="light"
+                                    color="orange"
+                                    bg="#fff2e5"
+                                    c="#ff9f1a"
+                                    fw={400}
+                                    h={32}
+                                    onClick={handleSuggestPrice}
+                                    loading={priceAi.loading}
+                                >
+                                    Узнать рыночную цену
+                                </Button>
+                            </Popover.Target>
+
+                            <Popover.Dropdown
+                                style={{
+                                    borderRadius: 16,
+                                    padding: 16,
+                                    width: 332,
+                                }}
+                            >
+                                {priceAi.error ? (
+                                    <AiErrorBox
+                                        message={priceAi.error}
+                                        onClose={() =>
+                                            setPriceAi((prev) => ({
+                                                ...prev,
+                                                opened: false,
+                                            }))
+                                        }
+                                        onRetry={handleSuggestPrice}
+                                    />
+                                ) : priceAi.result ? (
+                                    <Box>
+                                        <Text fw={700} fz={14} mb={8}>
+                                            Ответ AI:
+                                        </Text>
+
+                                        <Text fw={700} fz={16} mb={8}>
+                                            {formatRubles(priceAi.result.price)}
+                                        </Text>
+
+                                        {priceAi.result.reasons.length > 0 && (
+                                            <Box
+                                                component="ul"
+                                                style={{
+                                                    margin: 0,
+                                                    paddingLeft: 18,
+                                                    whiteSpace: "pre-wrap",
+                                                }}
+                                            >
+                                                {priceAi.result.reasons.map((reason, index) => (
+                                                    <Text key={index} component="li" fz={14} lh="160%">
+                                                        {reason}
+                                                    </Text>
+                                                ))}
+                                            </Box>
+                                        )}
+
+                                        <Flex justify="space-between" mt={16}>
+                                            <Button
+                                                variant="outline"
+                                                onClick={() =>
+                                                    setPriceAi((prev) => ({
+                                                        ...prev,
+                                                        opened: false,
+                                                    }))
+                                                }
+                                            >
+                                                Закрыть
+                                            </Button>
+
+                                            <Button onClick={handleApplyPrice}>Применить</Button>
+                                        </Flex>
+                                    </Box>
+                                ) : priceAi.loading ? (
+                                    <Text fz={14} c="dimmed">
+                                        Запрос к AI...
+                                    </Text>
+                                ) : null}
+                            </Popover.Dropdown>
+                        </Popover>
                     </Flex>
 
                     <Divider color="#ededed" />
@@ -680,7 +984,7 @@ const AdEditPage = () => {
                                     ]}
                                     value={
                                         form.params.transmission === "automatic" ||
-                                        form.params.transmission === "manual"
+                                            form.params.transmission === "manual"
                                             ? form.params.transmission
                                             : null
                                     }
@@ -761,19 +1065,96 @@ const AdEditPage = () => {
                         />
 
                         <Flex justify="space-between" align="center" mt={8}>
-                            <Button
-                                leftSection={<IconBulb size={14} />}
-                                radius={8}
-                                variant="light"
-                                color="orange"
-                                bg="#fff2e5"
-                                c="#ff9f1a"
-                                fw={400}
-                                h={32}
-                                onClick={handleSuggestDescription}
+                            <Popover
+                                opened={descriptionAi.opened}
+                                onChange={(opened) =>
+                                    setDescriptionAi((prev) => ({ ...prev, opened }))
+                                }
+                                position="bottom-start"
+                                withArrow
+                                shadow="md"
+                                width={420}
+                                closeOnClickOutside={false}
+                                closeOnEscape={false}
+                                withinPortal
                             >
-                                Придумать описание
-                            </Button>
+                                <Popover.Target>
+                                    <Button
+                                        leftSection={<IconBulb size={14} />}
+                                        radius={8}
+                                        variant="light"
+                                        color="orange"
+                                        bg="#fff2e5"
+                                        c="#ff9f1a"
+                                        fw={400}
+                                        h={32}
+                                        onClick={handleSuggestDescription}
+                                        loading={descriptionAi.loading}
+                                    >
+                                        Придумать описание
+                                    </Button>
+                                </Popover.Target>
+
+                                <Popover.Dropdown
+                                    style={{
+                                        borderRadius: 16,
+                                        padding: 16,
+                                        width: 420,
+                                    }}
+                                >
+                                    {descriptionAi.error ? (
+                                        <AiErrorBox
+                                            message={descriptionAi.error}
+                                            onClose={() =>
+                                                setDescriptionAi((prev) => ({
+                                                    ...prev,
+                                                    opened: false,
+                                                }))
+                                            }
+                                            onRetry={handleSuggestDescription}
+                                        />
+                                    ) : descriptionAi.result ? (
+                                        <Box>
+                                            <Text fw={700} fz={14} mb={8}>
+                                                Ответ AI:
+                                            </Text>
+
+                                            <Text
+                                                fz={14}
+                                                lh="160%"
+                                                style={{
+                                                    whiteSpace: "pre-wrap",
+                                                    wordBreak: "break-word",
+                                                }}
+                                            >
+                                                {descriptionAi.result}
+                                            </Text>
+
+                                            <Flex justify="space-between" mt={16}>
+                                                <Button
+                                                    variant="outline"
+                                                    onClick={() =>
+                                                        setDescriptionAi((prev) => ({
+                                                            ...prev,
+                                                            opened: false,
+                                                        }))
+                                                    }
+                                                >
+                                                    Закрыть
+                                                </Button>
+
+                                                <Button onClick={handleApplyDescription}>
+                                                    Применить
+                                                </Button>
+                                            </Flex>
+                                        </Box>
+                                    ) : descriptionAi.loading ? (
+                                        <Text fz={14} c="dimmed">
+                                            Запрос к AI...
+                                        </Text>
+                                    ) : null}
+                                </Popover.Dropdown>
+                            </Popover>
 
                             <Text fz={12} c="#b5b5b5">
                                 {form.description.length} / 1000
@@ -781,14 +1162,24 @@ const AdEditPage = () => {
                         </Flex>
                     </Box>
 
+                    {saveError && (
+                        <Alert color="red" variant="light" title="Ошибка сохранения" icon={<IconAlertTriangle size={16} />}>
+                            <Text fz={14}>{saveError}</Text>
+                        </Alert>
+                    )}
+
                     <Flex gap={12} mt={8}>
                         <Button
                             type="button"
                             onClick={handleSave}
-                            disabled={!isValid || updateMutation.isPending}
+                            loading={updateMutation.isPending}
+                            disabled={updateMutation.isPending}
+                            radius={8}
                             style={{
-                                background: isValid ? "#1890ff" : "#f3f3f3",
-                                color: isValid ? "#fff" : "#999",
+                                background: form.title.trim() && form.price.trim() ? "#1890ff" : "#f3f3f3",
+                                color: form.title.trim() && form.price.trim() ? "#fff" : "#999",
+                                border: "none",
+                                cursor: updateMutation.isPending ? "not-allowed" : "pointer",
                             }}
                         >
                             Сохранить
@@ -801,6 +1192,7 @@ const AdEditPage = () => {
                             variant="filled"
                             bg="#d9d9d9"
                             c="#4b4b4b"
+                            style={{ border: "none" }}
                         >
                             Отменить
                         </Button>
