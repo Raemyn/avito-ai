@@ -7,7 +7,6 @@ import {
     Box,
     Button,
     Checkbox,
-    Collapse,
     Divider,
     Flex,
     Menu,
@@ -18,7 +17,6 @@ import {
     TextInput,
     Title,
     Transition,
-    type MantineTheme,
 } from "@mantine/core";
 import {
     IconChevronDown,
@@ -98,6 +96,8 @@ const AdsListPage = () => {
     const [currentPage, setCurrentPage] = useState(1);
     const [searchTerm, setSearchTerm] = useState("");
 
+    const pageSize = view === "list" ? 4 : adsPerPage;
+
     const apiCategories = useMemo(
         () => selectedCategories.map((c) => mapCategoryToApi(c)),
         [selectedCategories]
@@ -128,12 +128,13 @@ const AdsListPage = () => {
             onlyNeedsFix,
             sortMode,
             currentPage,
+            view,
         ],
         queryFn: async (): Promise<ApiItemsResponse> => {
             const params = {
                 q: searchTerm.trim() || undefined,
-                limit: adsPerPage,
-                skip: (currentPage - 1) * adsPerPage,
+                limit: pageSize,
+                skip: (currentPage - 1) * pageSize,
                 needsRevision: onlyNeedsFix ? true : undefined,
                 categories: apiCategories.length ? apiCategories.join(",") : undefined,
                 ...sortParams,
@@ -156,7 +157,7 @@ const AdsListPage = () => {
     }, [data]);
 
     const totalAdsCount = data?.total ?? 0;
-    const totalPages = Math.max(1, Math.ceil(totalAdsCount / adsPerPage));
+    const totalPages = Math.max(1, Math.ceil(totalAdsCount / pageSize));
 
     useEffect(() => {
         setCurrentPage(1);
@@ -391,7 +392,9 @@ const AdsListPage = () => {
                                                     onChange={(event) => {
                                                         const checked = event.currentTarget.checked;
                                                         setSelectedCategories((prev) =>
-                                                            checked ? [...prev, cat] : prev.filter((c) => c !== cat)
+                                                            checked
+                                                                ? [...prev, cat]
+                                                                : prev.filter((c) => c !== cat)
                                                         );
                                                         setCurrentPage(1);
                                                     }}
@@ -650,7 +653,7 @@ const AdsListPage = () => {
                             </Box>
                         )}
 
-                        {totalAdsCount > adsPerPage && (
+                        {totalAdsCount > pageSize && (
                             <Flex mt={16} justify="flex-start" align="center" gap={10}>
                                 <Pagination
                                     value={currentPage}
@@ -659,7 +662,7 @@ const AdsListPage = () => {
                                     siblings={1}
                                     boundaries={1}
                                     radius={8}
-                                    color="#1890ff"      
+                                    color="#1890ff"
                                 />
 
                                 {isFetching && (
