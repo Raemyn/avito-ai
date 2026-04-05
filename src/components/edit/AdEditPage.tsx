@@ -25,7 +25,11 @@ import {
   IconCheck,
 } from "@tabler/icons-react";
 import { getItemById, updateItem } from "../../api/items";
-import { useAdEditStore, type EditFormState, type UiCategory } from "../../store/useAdEditStore";
+import {
+  useAdEditStore,
+  type EditFormState,
+  type UiCategory,
+} from "../../store/useAdEditStore";
 
 type ApiCategory = "auto" | "real_estate" | "electronics";
 
@@ -392,7 +396,9 @@ const buildUpdatePayload = (form: EditFormState): UpdatePayload => {
             ? form.params.transmission
             : undefined,
         mileage: toOptionalNumber(form.params.mileage),
-        enginePower: form.params.enginePower ? Math.round(Number(form.params.enginePower)) : undefined,
+        enginePower: form.params.enginePower
+          ? Math.round(Number(form.params.enginePower))
+          : undefined,
       }) as ApiAutoParams,
     };
   }
@@ -405,7 +411,9 @@ const buildUpdatePayload = (form: EditFormState): UpdatePayload => {
       price,
       params: cleanObject({
         type:
-          form.params.type === "flat" || form.params.type === "house" || form.params.type === "room"
+          form.params.type === "flat" ||
+          form.params.type === "house" ||
+          form.params.type === "room"
             ? form.params.type
             : undefined,
         address: form.params.address.trim() || undefined,
@@ -422,7 +430,9 @@ const buildUpdatePayload = (form: EditFormState): UpdatePayload => {
     price,
     params: cleanObject({
       type:
-        form.params.type === "phone" || form.params.type === "laptop" || form.params.type === "misc"
+        form.params.type === "phone" ||
+        form.params.type === "laptop" ||
+        form.params.type === "misc"
           ? form.params.type
           : undefined,
       brand: form.params.brand.trim() || undefined,
@@ -450,9 +460,9 @@ const AdEditPage = () => {
 
   const { data, isLoading, isError, error, refetch } = useQuery({
     queryKey: ["item", itemId],
-    queryFn: async (): Promise<ApiItemDetail> => {
-      return (await getItemById(itemId)) as ApiItemDetail;
-    },
+    queryFn: async ({ signal })  : Promise<ApiItemDetail> => {
+  return (await getItemById({ id: itemId, signal })) as ApiItemDetail;
+},
     enabled: Number.isFinite(itemId) && itemId > 0,
   });
 
@@ -477,7 +487,16 @@ const AdEditPage = () => {
     result: null,
   });
 
+  const priceAbortRef = useRef<AbortController | null>(null);
+  const descriptionAbortRef = useRef<AbortController | null>(null);
   const initializedItemIdRef = useRef<number | null>(null);
+
+  useEffect(() => {
+    return () => {
+      priceAbortRef.current?.abort();
+      descriptionAbortRef.current?.abort();
+    };
+  }, []);
 
   useEffect(() => {
     if (!item) return;
@@ -591,6 +610,10 @@ const AdEditPage = () => {
   const handleSuggestDescription = async () => {
     if (!form) return;
 
+    descriptionAbortRef.current?.abort();
+    const controller = new AbortController();
+    descriptionAbortRef.current = controller;
+
     try {
       setDescriptionAi({
         opened: true,
@@ -599,13 +622,18 @@ const AdEditPage = () => {
         result: null,
       });
 
-      const result = await suggestDescription({
-        category: item.category,
-        title: form.title,
-        description: form.description,
-        price: Number(form.price) || 0,
-        params: form.params,
-      });
+      const result = await suggestDescription(
+        {
+          category: item.category,
+          title: form.title,
+          description: form.description,
+          price: Number(form.price) || 0,
+          params: form.params,
+        },
+        controller.signal
+      );
+
+      if (controller.signal.aborted) return;
 
       setDescriptionAi({
         opened: true,
@@ -614,6 +642,8 @@ const AdEditPage = () => {
         result: result.description ?? "",
       });
     } catch (err) {
+      if (controller.signal.aborted) return;
+
       setDescriptionAi({
         opened: true,
         loading: false,
@@ -632,6 +662,10 @@ const AdEditPage = () => {
   const handleSuggestPrice = async () => {
     if (!form) return;
 
+    priceAbortRef.current?.abort();
+    const controller = new AbortController();
+    priceAbortRef.current = controller;
+
     try {
       setPriceAi({
         opened: true,
@@ -640,13 +674,18 @@ const AdEditPage = () => {
         result: null,
       });
 
-      const result = await suggestMarketPrice({
-        category: item.category,
-        title: form.title,
-        description: form.description,
-        price: Number(form.price) || 0,
-        params: form.params,
-      });
+      const result = await suggestMarketPrice(
+        {
+          category: item.category,
+          title: form.title,
+          description: form.description,
+          price: Number(form.price) || 0,
+          params: form.params,
+        },
+        controller.signal
+      );
+
+      if (controller.signal.aborted) return;
 
       setPriceAi({
         opened: true,
@@ -655,6 +694,8 @@ const AdEditPage = () => {
         result,
       });
     } catch (err) {
+      if (controller.signal.aborted) return;
+
       setPriceAi({
         opened: true,
         loading: false,

@@ -1,43 +1,55 @@
 import axios from "axios";
 
 const api = axios.create({
-    baseURL: "http://localhost:8080",
+  baseURL: "http://localhost:8080",
 });
 
-/* ================= TYPES ================= */
-
 export type ApiAd = {
-    id: number;
-    category: "auto" | "real_estate" | "electronics";
-    title: string;
-    price: number;
-    needsRevision: boolean;
-    description?: string;
-    params?: any;
+  id: number;
+  category: "auto" | "real_estate" | "electronics";
+  title: string;
+  price: number;
+  needsRevision: boolean;
+  description?: string;
+  params?: any;
 };
 
-/* ================= REQUESTS ================= */
-
-// список объявлений
-export const getItems = async (params?: {
-    q?: string;
-    limit?: number;
-    skip?: number;
-    needsRevision?: boolean;
-    categories?: string;
-}) => {
-    const { data } = await api.get("/items", { params });
-    return data;
+export type GetItemsParams = {
+  q?: string;
+  limit?: number;
+  skip?: number;
+  needsRevision?: boolean;
+  categories?: string;
+  sortColumn?: "title" | "createdAt" | "price";
+  sortDirection?: "asc" | "desc";
 };
 
-// одно объявление
-export const getItemById = async (id: number) => {
-    const { data } = await api.get(`/items/${id}`);
-    return data;
+type GetItemsArgs = {
+  params?: GetItemsParams;
+  signal?: AbortSignal;
 };
 
-// обновление
+type GetItemByIdArgs = {
+  id: number;
+  signal?: AbortSignal;
+};
+
+export const getItems = async ({ params, signal }: GetItemsArgs = {}) => {
+  const { data } = await api.get("/items", {
+    params,
+    signal,
+  });
+  return data;
+};
+
+export const getItemById = async ({ id, signal }: GetItemByIdArgs) => {
+  const { data } = await api.get(`/items/${id}`, {
+    signal,
+  });
+  return data;
+};
+
 export const updateItem = async (id: number, payload: any) => {
-    const { data } = await api.put(`/items/${id}`, payload);
-    return data;
+  const { data } = await api.put(`/items/${id}`, payload);
+  return data;
 };

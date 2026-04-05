@@ -113,10 +113,10 @@ const mapItemToUiAd = (item: ApiItemDetail): UiAd => {
   const params =
     item.params && Object.keys(item.params).length > 0
       ? (Object.fromEntries(
-          Object.entries(item.params)
-            .filter(([, value]) => value !== null && value !== undefined && value !== "")
-            .map(([key, value]) => [key, String(value)])
-        ) as Record<string, string>)
+        Object.entries(item.params)
+          .filter(([, value]) => value !== null && value !== undefined && value !== "")
+          .map(([key, value]) => [key, String(value)])
+      ) as Record<string, string>)
       : undefined;
 
   return {
@@ -140,8 +140,8 @@ const AdViewPage = () => {
 
   const { data, isLoading, isError, error, refetch } = useQuery({
     queryKey: ["item", itemId],
-    queryFn: async (): Promise<ApiItemDetail> => {
-      return (await getItemById(itemId)) as ApiItemDetail;
+    queryFn: async ({ signal }): Promise<ApiItemDetail> => {
+      return (await getItemById({ id: itemId, signal })) as ApiItemDetail;
     },
     enabled: Number.isFinite(itemId) && itemId > 0,
   });
