@@ -18,6 +18,7 @@ import {
     TextInput,
     Title,
     Transition,
+    type MantineTheme,
 } from "@mantine/core";
 import {
     IconChevronDown,
@@ -657,25 +658,8 @@ const AdsListPage = () => {
                                     total={totalPages}
                                     siblings={1}
                                     boundaries={1}
-                                    withEdges
                                     radius={8}
-                                    styles={{
-                                        root: {
-                                            gap: 6,
-                                        },
-                                        control: {
-                                            border: "1px solid #d9d9d9",
-                                            color: "#000",
-                                            backgroundColor: "#fff",
-                                            "&[data-active]": {
-                                                borderColor: "#1890ff",
-                                                color: "#1890ff",
-                                            },
-                                        },
-                                        dots: {
-                                            color: "#000",
-                                        },
-                                    }}
+                                    color="#1890ff"      
                                 />
 
                                 {isFetching && (
