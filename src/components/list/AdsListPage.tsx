@@ -11,16 +11,16 @@ import {
     Divider,
     Flex,
     Menu,
+    Pagination,
     Paper,
     Switch,
     Text,
     TextInput,
     Title,
+    Transition,
 } from "@mantine/core";
 import {
     IconChevronDown,
-    IconChevronLeft,
-    IconChevronRight,
     IconLayoutGrid,
     IconList,
     IconPhoto,
@@ -28,7 +28,13 @@ import {
 } from "@tabler/icons-react";
 import AdsHeader from "./AdsHeader";
 
-type SortMode = "new" | "old" | "cheap" | "expensive" | "title_asc" | "title_desc";
+type SortMode =
+    | "new"
+    | "old"
+    | "cheap"
+    | "expensive"
+    | "title_asc"
+    | "title_desc";
 
 type ApiCategory = "auto" | "real_estate" | "electronics";
 
@@ -55,6 +61,9 @@ type UiAd = {
     needsFix: boolean;
 };
 
+const categories: UiCategory[] = ["Авто", "Электроника", "Недвижимость"];
+const adsPerPage = 10;
+
 const mapCategory = (category: ApiCategory): UiCategory => {
     switch (category) {
         case "auto":
@@ -66,36 +75,73 @@ const mapCategory = (category: ApiCategory): UiCategory => {
     }
 };
 
+const mapCategoryToApi = (category: UiCategory): ApiCategory => {
+    switch (category) {
+        case "Авто":
+            return "auto";
+        case "Недвижимость":
+            return "real_estate";
+        case "Электроника":
+            return "electronics";
+    }
+};
+
 const AdsListPage = () => {
     const navigate = useNavigate();
 
     const [view, setView] = useState<"grid" | "list">("grid");
     const [sortMode, setSortMode] = useState<SortMode>("new");
     const [categoriesOpen, setCategoriesOpen] = useState(false);
-    const [selectedCategories, setSelectedCategories] = useState<string[]>([]);
+    const [selectedCategories, setSelectedCategories] = useState<UiCategory[]>([]);
     const [onlyNeedsFix, setOnlyNeedsFix] = useState(false);
     const [currentPage, setCurrentPage] = useState(1);
     const [searchTerm, setSearchTerm] = useState("");
 
-    const categories = ["Авто", "Электроника", "Недвижимость"];
-    const adsPerPage = 10;
+    const apiCategories = useMemo(
+        () => selectedCategories.map((c) => mapCategoryToApi(c)),
+        [selectedCategories]
+    );
 
-    const parsePrice = (price: string) => Number(price.replace(/[^\d]/g, "")) || 0;
-    const normalize = (value: string) => value.toLowerCase().replace(/\s+/g, " ").trim();
+    const sortParams = useMemo(() => {
+        switch (sortMode) {
+            case "new":
+                return { sortColumn: "createdAt" as const, sortDirection: "desc" as const };
+            case "old":
+                return { sortColumn: "createdAt" as const, sortDirection: "asc" as const };
+            case "title_asc":
+                return { sortColumn: "title" as const, sortDirection: "asc" as const };
+            case "title_desc":
+                return { sortColumn: "title" as const, sortDirection: "desc" as const };
+            case "cheap":
+                return { sortColumn: "price" as const, sortDirection: "asc" as const };
+            case "expensive":
+                return { sortColumn: "price" as const, sortDirection: "desc" as const };
+        }
+    }, [sortMode]);
 
-    const {
-        data,
-        isLoading,
-        isError,
-        error,
-        refetch,
-    } = useQuery({
-        queryKey: ["ads"],
+    const { data, isLoading, isError, error, refetch, isFetching } = useQuery({
+        queryKey: [
+            "ads",
+            searchTerm,
+            selectedCategories,
+            onlyNeedsFix,
+            sortMode,
+            currentPage,
+        ],
         queryFn: async (): Promise<ApiItemsResponse> => {
-            const result = await getItems();
-            return result as ApiItemsResponse;
+            const params = {
+                q: searchTerm.trim() || undefined,
+                limit: adsPerPage,
+                skip: (currentPage - 1) * adsPerPage,
+                needsRevision: onlyNeedsFix ? true : undefined,
+                categories: apiCategories.length ? apiCategories.join(",") : undefined,
+                ...sortParams,
+            };
+
+            return (await getItems(params)) as ApiItemsResponse;
         },
         staleTime: 60_000,
+        placeholderData: (previousData) => previousData,
     });
 
     const ads: UiAd[] = useMemo(() => {
@@ -108,127 +154,18 @@ const AdsListPage = () => {
         }));
     }, [data]);
 
-    const adOrder = useMemo(() => {
-        return new Map(ads.map((ad, index) => [ad.id, index]));
-    }, [ads]);
-
-    const toggleCategory = (cat: string) => {
-        setSelectedCategories((prev) =>
-            prev.includes(cat) ? prev.filter((c) => c !== cat) : [...prev, cat]
-        );
-        setCurrentPage(1);
-    };
-
-    const resetFilters = () => {
-        setSelectedCategories([]);
-        setCategoriesOpen(false);
-        setOnlyNeedsFix(false);
-        setSortMode("new");
-        setSearchTerm("");
-        setCurrentPage(1);
-    };
-
-    const filteredAds = useMemo(() => {
-        const query = normalize(searchTerm);
-
-        return ads.filter((ad) => {
-            const categoryOk =
-                selectedCategories.length === 0 || selectedCategories.includes(ad.category);
-
-            const fixOk = !onlyNeedsFix || ad.needsFix;
-
-            const searchOk = query.length === 0 || normalize(ad.title).includes(query);
-
-            return categoryOk && fixOk && searchOk;
-        });
-    }, [ads, searchTerm, selectedCategories, onlyNeedsFix]);
-
-    const sortedAds = useMemo(() => {
-        const list = [...filteredAds];
-
-        switch (sortMode) {
-            case "cheap":
-                list.sort((a, b) => parsePrice(a.price) - parsePrice(b.price));
-                break;
-
-            case "expensive":
-                list.sort((a, b) => parsePrice(b.price) - parsePrice(a.price));
-                break;
-
-            case "new":
-                list.sort((a, b) => (adOrder.get(b.id) ?? 0) - (adOrder.get(a.id) ?? 0));
-                break;
-
-            case "old":
-                list.sort((a, b) => (adOrder.get(a.id) ?? 0) - (adOrder.get(b.id) ?? 0));
-                break;
-
-            case "title_asc":
-                list.sort((a, b) => a.title.localeCompare(b.title));
-                break;
-
-            case "title_desc":
-                list.sort((a, b) => b.title.localeCompare(a.title));
-                break;
-        }
-
-        return list;
-    }, [filteredAds, sortMode, adOrder]);
-
-    const totalPages = Math.ceil(sortedAds.length / adsPerPage);
+    const totalAdsCount = data?.total ?? 0;
+    const totalPages = Math.max(1, Math.ceil(totalAdsCount / adsPerPage));
 
     useEffect(() => {
-        if (currentPage > totalPages && totalPages > 0) {
-            setCurrentPage(1);
+        setCurrentPage(1);
+    }, [searchTerm, selectedCategories, onlyNeedsFix, sortMode, view]);
+
+    useEffect(() => {
+        if (currentPage > totalPages) {
+            setCurrentPage(totalPages);
         }
     }, [currentPage, totalPages]);
-
-    useEffect(() => {
-        setCurrentPage(1);
-    }, [view, sortMode]);
-
-    useEffect(() => {
-        setCurrentPage(1);
-    }, [searchTerm, selectedCategories, onlyNeedsFix]);
-
-    const displayedAds = sortedAds.slice(
-        (currentPage - 1) * adsPerPage,
-        currentPage * adsPerPage
-    );
-
-    const handlePageChange = (page: number) => {
-        if (page >= 1 && page <= totalPages) setCurrentPage(page);
-    };
-
-    const getVisiblePages = () => {
-        if (totalPages <= 5) {
-            return Array.from({ length: totalPages }, (_, i) => i + 1);
-        }
-
-        if (currentPage <= 3) {
-            return [1, 2, 3, 4, 5];
-        }
-
-        if (currentPage >= totalPages - 2) {
-            return [
-                totalPages - 4,
-                totalPages - 3,
-                totalPages - 2,
-                totalPages - 1,
-                totalPages,
-            ];
-        }
-
-        return [
-            currentPage - 2,
-            currentPage - 1,
-            currentPage,
-            currentPage + 1,
-            currentPage + 2,
-        ];
-    };
-
-    const visiblePages = getVisiblePages();
 
     const sortLabelMap: Record<SortMode, string> = {
         new: "По новизне (сначала новые)",
@@ -240,7 +177,6 @@ const AdsListPage = () => {
     };
 
     const sortLabel = sortLabelMap[sortMode];
-    const totalAdsCount = data?.total ?? ads.length;
 
     if (isLoading) {
         return (
@@ -254,7 +190,7 @@ const AdsListPage = () => {
         return (
             <Box pt={40} px={32} bg="#f7f5f8" mih="100vh">
                 <Text c="red">Не удалось загрузить объявления.</Text>
-                <Button mt={16} onClick={() => refetch()}>
+                <Button mt={16} type="button" onClick={() => refetch()}>
                     Повторить
                 </Button>
                 <Text mt={8} fz={12} c="#666">
@@ -277,10 +213,7 @@ const AdsListPage = () => {
                             radius={8}
                             w={958}
                             value={searchTerm}
-                            onChange={(event) => {
-                                setSearchTerm(event.currentTarget.value);
-                                setCurrentPage(1);
-                            }}
+                            onChange={(event) => setSearchTerm(event.currentTarget.value)}
                             rightSection={<IconSearch size={14} />}
                             styles={{
                                 input: {
@@ -311,9 +244,7 @@ const AdsListPage = () => {
                                         color={view === "grid" ? "#1890ff" : "#848388"}
                                     />
                                 </ActionIcon>
-
                                 <Divider color="#fff" h={28} orientation="vertical" />
-
                                 <ActionIcon
                                     pr={4}
                                     bg="#f7f5f8"
@@ -333,6 +264,7 @@ const AdsListPage = () => {
                         <Menu>
                             <Menu.Target>
                                 <Button
+                                    type="button"
                                     color="#000"
                                     bg="#f7f5f8"
                                     w={240}
@@ -343,7 +275,6 @@ const AdsListPage = () => {
                                             fontSize: "14px",
                                             border: "none",
                                             borderRadius: "8px",
-                                            alignSelf: "center",
                                             textAlign: "center",
                                             display: "flex",
                                             alignItems: "center",
@@ -354,7 +285,15 @@ const AdsListPage = () => {
                                     }}
                                     rightSection={<IconChevronDown size={16} color="#000" />}
                                 >
-                                    <Text pl={12} lts={0.2} bg="#fff" h={22} fw={400} fz={14} c="#000">
+                                    <Text
+                                        pl={12}
+                                        lts={0.2}
+                                        bg="#fff"
+                                        h={22}
+                                        fw={400}
+                                        fz={14}
+                                        c="#000"
+                                    >
                                         {sortLabel}
                                     </Text>
                                 </Button>
@@ -362,60 +301,30 @@ const AdsListPage = () => {
 
                             <Menu.Dropdown>
                                 <Menu.Label>Название</Menu.Label>
-                                <Menu.Item
-                                    onClick={() => {
-                                        setSortMode("title_asc");
-                                        setCurrentPage(1);
-                                    }}
-                                >
+                                <Menu.Item onClick={() => setSortMode("title_asc")}>
                                     А → Я
                                 </Menu.Item>
-                                <Menu.Item
-                                    onClick={() => {
-                                        setSortMode("title_desc");
-                                        setCurrentPage(1);
-                                    }}
-                                >
+                                <Menu.Item onClick={() => setSortMode("title_desc")}>
                                     Я → А
                                 </Menu.Item>
 
                                 <Menu.Divider />
 
                                 <Menu.Label>Новизна</Menu.Label>
-                                <Menu.Item
-                                    onClick={() => {
-                                        setSortMode("new");
-                                        setCurrentPage(1);
-                                    }}
-                                >
+                                <Menu.Item onClick={() => setSortMode("new")}>
                                     Сначала новые
                                 </Menu.Item>
-                                <Menu.Item
-                                    onClick={() => {
-                                        setSortMode("old");
-                                        setCurrentPage(1);
-                                    }}
-                                >
+                                <Menu.Item onClick={() => setSortMode("old")}>
                                     Сначала старые
                                 </Menu.Item>
 
                                 <Menu.Divider />
 
                                 <Menu.Label>Цена</Menu.Label>
-                                <Menu.Item
-                                    onClick={() => {
-                                        setSortMode("cheap");
-                                        setCurrentPage(1);
-                                    }}
-                                >
+                                <Menu.Item onClick={() => setSortMode("cheap")}>
                                     Сначала дешевле
                                 </Menu.Item>
-                                <Menu.Item
-                                    onClick={() => {
-                                        setSortMode("expensive");
-                                        setCurrentPage(1);
-                                    }}
-                                >
+                                <Menu.Item onClick={() => setSortMode("expensive")}>
                                     Сначала дороже
                                 </Menu.Item>
                             </Menu.Dropdown>
@@ -432,6 +341,7 @@ const AdsListPage = () => {
 
                             <Box w={240} mt={7}>
                                 <Button
+                                    type="button"
                                     fullWidth
                                     variant="outline"
                                     radius={8}
@@ -447,9 +357,7 @@ const AdsListPage = () => {
                                             size={18}
                                             style={{
                                                 marginRight: "14px",
-                                                transform: categoriesOpen
-                                                    ? "rotate(180deg)"
-                                                    : "rotate(0deg)",
+                                                transform: categoriesOpen ? "rotate(180deg)" : "rotate(0deg)",
                                                 transition: "0.2s",
                                             }}
                                         />
@@ -466,25 +374,35 @@ const AdsListPage = () => {
                                     Категория
                                 </Button>
 
-                                <Collapse expanded={categoriesOpen}>
-                                    <Paper mt={5} p={0} radius={8}>
-                                        {categories.map((cat) => (
-                                            <Checkbox
-                                                key={cat}
-                                                label={cat}
-                                                checked={selectedCategories.includes(cat)}
-                                                onChange={() => toggleCategory(cat)}
-                                                mb={8}
-                                                styles={{
-                                                    label: {
-                                                        fontSize: 14,
-                                                        letterSpacing: 0.3,
-                                                    },
-                                                }}
-                                            />
-                                        ))}
-                                    </Paper>
-                                </Collapse>
+                                <Transition
+                                    mounted={categoriesOpen}
+                                    transition="fade"
+                                    duration={200}
+                                    timingFunction="ease"
+                                >
+                                    {(styles) => (
+                                        <Paper mt={5} p={0} radius={8} style={styles}>
+                                            {categories.map((cat) => (
+                                                <Checkbox
+                                                    key={cat}
+                                                    label={cat}
+                                                    checked={selectedCategories.includes(cat)}
+                                                    onChange={(event) => {
+                                                        const checked = event.currentTarget.checked;
+                                                        setSelectedCategories((prev) =>
+                                                            checked ? [...prev, cat] : prev.filter((c) => c !== cat)
+                                                        );
+                                                        setCurrentPage(1);
+                                                    }}
+                                                    mb={8}
+                                                    styles={{
+                                                        label: { fontSize: 14, letterSpacing: 0.3 },
+                                                    }}
+                                                />
+                                            ))}
+                                        </Paper>
+                                    )}
+                                </Transition>
                             </Box>
 
                             <Divider my="sm" />
@@ -493,13 +411,10 @@ const AdsListPage = () => {
                                 <Title fz={14} fw={600} order={3}>
                                     Только требующие <br /> доработок
                                 </Title>
-
                                 <Switch
                                     checked={onlyNeedsFix}
-                                    onChange={(event) => setOnlyNeedsFix(event.currentTarget.checked)}
+                                    onChange={(e) => setOnlyNeedsFix(e.currentTarget.checked)}
                                     size="md"
-                                    onLabel=""
-                                    offLabel=""
                                     styles={{
                                         track: {
                                             width: 44,
@@ -513,7 +428,7 @@ const AdsListPage = () => {
                                             borderRadius: 16,
                                             backgroundColor: "#fff",
                                             border: "none",
-                                            boxShadow: "0 2px 4px 0 rgba(0, 35, 11, 0.2)",
+                                            boxShadow: "0 2px 4px rgba(0, 35, 11, 0.2)",
                                         },
                                     }}
                                 />
@@ -521,7 +436,16 @@ const AdsListPage = () => {
                         </Flex>
 
                         <Button
-                            onClick={resetFilters}
+                            type="button"
+                            onClick={() => {
+                                setSelectedCategories([]);
+                                setCategoriesOpen(false);
+                                setOnlyNeedsFix(false);
+                                setSortMode("new");
+                                setSearchTerm("");
+                                setCurrentPage(1);
+                                setView("grid");
+                            }}
                             styles={{
                                 root: {
                                     borderRadius: 8,
@@ -540,7 +464,7 @@ const AdsListPage = () => {
                     </Flex>
 
                     <Flex direction="column" flex={1}>
-                        {sortedAds.length === 0 ? (
+                        {ads.length === 0 ? (
                             <Paper p={24} radius={16} bg="#fff">
                                 <Text c="#707176">Ничего не найдено.</Text>
                             </Paper>
@@ -555,7 +479,7 @@ const AdsListPage = () => {
                                     justifyContent: "start",
                                 }}
                             >
-                                {displayedAds.map((ad) => (
+                                {ads.map((ad) => (
                                     <Paper
                                         key={ad.id}
                                         onClick={() => navigate(`/ads/${ad.id}`)}
@@ -616,10 +540,10 @@ const AdsListPage = () => {
                                                 fw={400}
                                                 lh="24px"
                                                 c="#000"
+                                                lineClamp={1}
                                             >
                                                 {ad.title}
                                             </Text>
-
                                             <Text fz={16} fw={600} lh={1.4} c="rgba(0, 0, 0, 0.45)">
                                                 {ad.price}
                                             </Text>
@@ -652,7 +576,7 @@ const AdsListPage = () => {
                                     width: "100%",
                                 }}
                             >
-                                {displayedAds.map((ad) => (
+                                {ads.map((ad) => (
                                     <Paper
                                         key={ad.id}
                                         onClick={() => navigate(`/ads/${ad.id}`)}
@@ -697,11 +621,9 @@ const AdsListPage = () => {
                                                     <Text fz={14} fw={400} c="#848388" mb={6}>
                                                         {ad.category}
                                                     </Text>
-
-                                                    <Text fz={15} fw={400} c="#000" mb={6}>
+                                                    <Text fz={15} fw={400} c="#000" mb={6} lineClamp={2}>
                                                         {ad.title}
                                                     </Text>
-
                                                     <Text fz={15} fw={600} c="rgba(0, 0, 0, 0.75)">
                                                         {ad.price}
                                                     </Text>
@@ -727,68 +649,40 @@ const AdsListPage = () => {
                             </Box>
                         )}
 
-                        {totalPages > 1 && (
-                            <Flex mt={10} justify="flex-start" align="center" gap={8}>
-                                <ActionIcon
-                                    onClick={() => currentPage > 1 && handlePageChange(currentPage - 1)}
-                                    aria-label="Предыдущая страница"
-                                    style={{
-                                        border: "1px solid #d9d9d9",
-                                        borderRadius: 8,
-                                        width: 32,
-                                        height: 32,
-                                        background: "#fff",
-                                        flexShrink: 0,
-                                        opacity: currentPage === 1 ? 0.45 : 1,
-                                        cursor: currentPage === 1 ? "default" : "pointer",
+                        {totalAdsCount > adsPerPage && (
+                            <Flex mt={16} justify="flex-start" align="center" gap={10}>
+                                <Pagination
+                                    value={currentPage}
+                                    onChange={setCurrentPage}
+                                    total={totalPages}
+                                    siblings={1}
+                                    boundaries={1}
+                                    withEdges
+                                    radius={8}
+                                    styles={{
+                                        root: {
+                                            gap: 6,
+                                        },
+                                        control: {
+                                            border: "1px solid #d9d9d9",
+                                            color: "#000",
+                                            backgroundColor: "#fff",
+                                            "&[data-active]": {
+                                                borderColor: "#1890ff",
+                                                color: "#1890ff",
+                                            },
+                                        },
+                                        dots: {
+                                            color: "#000",
+                                        },
                                     }}
-                                >
-                                    <IconChevronLeft size={16} color="#000" />
-                                </ActionIcon>
+                                />
 
-                                {visiblePages.map((page) => (
-                                    <Button
-                                        key={page}
-                                        onClick={() => handlePageChange(page)}
-                                        style={{
-                                            border:
-                                                currentPage === page
-                                                    ? "1px solid #1890ff"
-                                                    : "1px solid #d9d9d9",
-                                            borderRadius: 8,
-                                            width: 32,
-                                            height: 32,
-                                            padding: 0,
-                                            background: "#fff",
-                                            fontWeight: 500,
-                                            fontSize: 14,
-                                            lineHeight: "157%",
-                                            textAlign: "center",
-                                            color: currentPage === page ? "#1890ff" : "#000",
-                                        }}
-                                    >
-                                        {page}
-                                    </Button>
-                                ))}
-
-                                <ActionIcon
-                                    onClick={() =>
-                                        currentPage < totalPages && handlePageChange(currentPage + 1)
-                                    }
-                                    aria-label="Следующая страница"
-                                    style={{
-                                        border: "1px solid #d9d9d9",
-                                        borderRadius: 8,
-                                        width: 32,
-                                        height: 32,
-                                        background: "#fff",
-                                        flexShrink: 0,
-                                        opacity: currentPage === totalPages ? 0.45 : 1,
-                                        cursor: currentPage === totalPages ? "default" : "pointer",
-                                    }}
-                                >
-                                    <IconChevronRight size={16} color="#000" />
-                                </ActionIcon>
+                                {isFetching && (
+                                    <Text fz={12} c="#707176">
+                                        Обновление...
+                                    </Text>
+                                )}
                             </Flex>
                         )}
                     </Flex>
