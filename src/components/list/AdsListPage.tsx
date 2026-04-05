@@ -7,6 +7,7 @@ import {
     ActionIcon,
     Box,
     Button,
+    Center,
     Checkbox,
     Divider,
     Flex,
@@ -216,16 +217,16 @@ const AdsListPage = () => {
                             value={searchTerm}
                             onChange={(event) => setSearchTerm(event.currentTarget.value)}
                             rightSection={<IconSearch size={14} />}
+                            fw={400}
+                            fz={14}
+                            bdrs={8}
+                            bd={'none'}
+                            color="#707176"
+                            lh={'157%'}
                             styles={{
                                 input: {
                                     border: "none",
-                                    outline: "none",
                                     backgroundColor: "#f7f5f8",
-                                    fontWeight: 400,
-                                    fontSize: "14px",
-                                    paddingBottom: "6px",
-                                    lineHeight: "157%",
-                                    color: "#707176",
                                 },
                             }}
                         />
@@ -271,19 +272,12 @@ const AdsListPage = () => {
                                     w={240}
                                     h={32}
                                     variant="outline"
-                                    styles={{
-                                        root: {
-                                            fontSize: "14px",
-                                            border: "none",
-                                            borderRadius: "8px",
-                                            textAlign: "center",
-                                            display: "flex",
-                                            alignItems: "center",
-                                            justifyContent: "space-between",
-                                            padding: "0 4px",
-                                            height: 22,
-                                        },
-                                    }}
+                                    bd={'none'}
+                                    radius={8}
+                                    fz={14}
+                                    ta={Center}
+                                    justify="space-between"
+                                    p={'0 4px'}
                                     rightSection={<IconChevronDown size={16} color="#000" />}
                                 >
                                     <Text
@@ -326,9 +320,9 @@ const AdsListPage = () => {
                 <Flex mt={18} gap={24} align="flex-start">
                     <Flex gap={10} direction="column">
                         <Flex p={16} w={256} bg="#fff" direction="column">
-                            <Title order={3} fw={500} fz={16}>
+                            <Text fw={500} fz={16}>
                                 Фильтры
-                            </Title>
+                            </Text>
 
                             <Box w={240} mt={7}>
                                 <Button
@@ -342,6 +336,9 @@ const AdsListPage = () => {
                                     fw={400}
                                     p={0}
                                     c="#000"
+                                    bd={'none'}
+                                    pl={12}
+                                    pr={12}
                                     onClick={() => setCategoriesOpen((o) => !o)}
                                     rightSection={
                                         <IconChevronDown
@@ -353,14 +350,7 @@ const AdsListPage = () => {
                                             }}
                                         />
                                     }
-                                    styles={{
-                                        root: {
-                                            border: "none",
-                                            justifyContent: "space-between",
-                                            paddingLeft: 12,
-                                            paddingRight: 12,
-                                        },
-                                    }}
+                                   
                                 >
                                     Категория
                                 </Button>
@@ -382,9 +372,9 @@ const AdsListPage = () => {
                                                         toggleCategory(cat);
                                                     }}
                                                     mb={8}
-                                                    styles={{
-                                                        label: { fontSize: 14, letterSpacing: 0.3 },
-                                                    }}
+                                                    fw={400}
+                                                  
+                                                    
                                                 />
                                             ))}
                                         </Paper>
@@ -428,18 +418,18 @@ const AdsListPage = () => {
                                 resetFilters();
                                 setCategoriesOpen(false);
                             }}
-                            styles={{
-                                root: {
-                                    borderRadius: 8,
-                                    padding: "12px",
-                                    width: 256,
-                                    height: 41,
-                                    fontWeight: 400,
-                                    fontSize: 14,
-                                    color: "#848388",
-                                    backgroundColor: "#fff",
-                                },
-                            }}
+                            bdrs={8}
+                            p={12}
+                            w={256}
+                            h={41}
+                            fw={400}
+                            fz={14}
+                            c="#848388"
+                            ff={"var(--second-family)"}
+
+                          
+                            bg={'white'}
+                            
                         >
                             Сбросить фильтры
                         </Button>
@@ -526,7 +516,7 @@ const AdsListPage = () => {
                                             >
                                                 {ad.title}
                                             </Text>
-                                            <Text fz={16} fw={600} lh={1.4} c="rgba(0, 0, 0, 0.45)">
+                                            <Text ff={'var(--second-family)'} fw={600} fz={16} lh={1.4} c="rgba(0, 0, 0, 0.45)">
                                                 {ad.price}
                                             </Text>
 

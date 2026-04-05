@@ -199,7 +199,7 @@ const AdViewPage = () => {
       <Paper radius={24} p={32} bg="#fff">
         <Flex justify="space-between" align="flex-start">
           <Box>
-            <Title fw={600} fz={28}>
+            <Title ff={'var(--font-family)'} fw={500} fz={28}>
               {ad.title}
             </Title>
 
@@ -209,24 +209,26 @@ const AdViewPage = () => {
               onClick={() => navigate(`/ads/${ad.id}/edit`)}
               radius={8}
               h={38}
+              fw={400}
               w={170}
               justify="space-between"
               bg="#1890ff"
+              ff={'var(--second-family)'}
             >
               Редактировать
             </Button>
           </Box>
 
           <Box ta="right">
-            <Title fw={600} fz={28}>
+            <Title ff={'var(--font-family)'} fw={500} fz={28}>
               {ad.price}
             </Title>
 
-            <Text fz={14} c="#8b8b8b" mt={12}>
+            <Text   ff={'var(--second-family)'} fw={400} fz={14} c="#8b8b8b" mt={12}>
               Опубликовано: {ad.createdAt}
             </Text>
 
-            <Text fz={14} c="#8b8b8b">
+            <Text fz={14} ff={'var(--second-family)'} fw={400}  c="#8b8b8b">
               Отредактировано: {ad.updatedAt}
             </Text>
           </Box>
@@ -283,11 +285,11 @@ const AdViewPage = () => {
                       Требуются доработки
                     </Text>
 
-                    <Text fz={13}>У объявления не заполнены поля:</Text>
+                    <Text fw={400} fz={14}>У объявления не заполнены поля:</Text>
 
                     <Box pl={9}>
                       {missingFields.map((field) => (
-                        <Text key={field}>• {field}</Text>
+                        <Text fz={14} fw={400} key={field}>• {field}</Text>
                       ))}
                     </Box>
                   </Box>
@@ -295,8 +297,8 @@ const AdViewPage = () => {
               </Paper>
             )}
 
-            <Title order={3} fz={22} fw={600} mb={14}>
-              Характеристики
+            <Title ff={'var(--font-family)'} fw={500} order={3} fz={22}  mb={14}>
+              Характеристики 
             </Title>
 
             <Box>
@@ -306,10 +308,10 @@ const AdViewPage = () => {
 
                   return (
                     <Flex key={key} gap={40} mb={4}>
-                      <Text c="#9a9a9a" w={180}>
+                      <Text ff={'var(--second-family)'} fz={16} fw={600} c="rgba(0, 0, 0, 0.45)" w={180}>
                         {paramLabels[key] || key}
                       </Text>
-                      <Text>{value}</Text>
+                      <Text color="#1e1e1e" ff={'var(--second-family)'}  fw={400} fz={16} >{value}</Text>
                     </Flex>
                   );
                 })}
@@ -318,11 +320,11 @@ const AdViewPage = () => {
         </Flex>
 
         <Box mt={31} w={470}>
-          <Title order={3} fz={22} fw={600} mb={12}>
+          <Title order={3} c={'rgba(0, 0, 0, 0.85'} fz={22} ff={'var(--font-family)'} fw={500} mb={12}>
             Описание
           </Title>
 
-          <Text fz={16} lh={1.4} c="#333">
+          <Text fz={16} lh={1.4} c="#1e1e1e" ff={'var(--second-family)'}  fw={400} >
             {ad.description || "Описание отсутствует"}
           </Text>
         </Box>
